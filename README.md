@@ -67,12 +67,12 @@ Pushes to `main` and manual runs of **Build Godot Web and Deploy to GitHub Pages
 
 ### Custom domain
 
-The production URL is <https://opencards.dustland.ai>. First verify the `dustland.ai` domain for the `dustland` GitHub organization to reduce custom-domain takeover risk. Then configure `opencards.dustland.ai` in the repository under **Settings > Pages > Custom domain** before changing DNS. The DNS record must be:
+The production URL is <https://opencards.dustland.ai>. First verify the `dustland.ai` domain for the `lyuai` GitHub organization to reduce custom-domain takeover risk. Then configure `opencards.dustland.ai` in the repository under **Settings > Pages > Custom domain** before changing DNS. The DNS record must be:
 
 ```text
 Type:  CNAME
 Name:  opencards
-Value: dustland.github.io
+Value: lyuai.github.io
 ```
 
 After DNS propagation and GitHub certificate issuance, enable **Enforce HTTPS** in **Settings > Pages**. The Actions artifact intentionally does not include a `CNAME` file because the custom domain is managed in repository settings.

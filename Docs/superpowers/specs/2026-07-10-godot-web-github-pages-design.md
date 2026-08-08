@@ -61,17 +61,17 @@ No project secret is required. The workflow uses the standard GitHub token and O
 
 ## Custom Domain
 
-The GitHub organization is `dustland`, so the DNS record is:
+The GitHub organization is `lyuai`, so the DNS record is:
 
 ```text
 Type:  CNAME
 Name:  opencards
-Value: dustland.github.io
+Value: lyuai.github.io
 ```
 
 The repository administrator must configure `opencards.dustland.ai` under **Settings > Pages > Custom domain**. With an Actions-based Pages source, the custom domain is repository configuration; a generated `CNAME` file is not required and GitHub documents that existing `CNAME` files are ignored for custom workflows.
 
-The domain should be verified for the `dustland` GitHub organization before DNS is switched to reduce takeover risk. After DNS propagation and certificate issuance, **Enforce HTTPS** must be enabled. DNS propagation and certificate issuance are external states and may take time.
+The domain should be verified for the `lyuai` GitHub organization before DNS is switched to reduce takeover risk. After DNS propagation and certificate issuance, **Enforce HTTPS** must be enabled. DNS propagation and certificate issuance are external states and may take time.
 
 ## Failure Handling
 
