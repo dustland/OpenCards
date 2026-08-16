@@ -23,6 +23,8 @@ var _card_registry: Dictionary = {}
 var _coach_pulse: Tween
 var _inspect_panel: PanelContainer
 var _last_layout_size := Vector2.ZERO
+var _card_titles: Dictionary = {}
+var _guard_segments: Array = []
 
 signal how_to_play_requested
 
@@ -184,6 +186,7 @@ func _apply_responsive_layout() -> void:
 	%CoachObjective.add_theme_font_size_override("font_size", 14 if compact else 16)
 	if size_changed:
 		cancel_motion()
+		call_deferred("_refresh_guard_links")
 
 func initialize(main: Main, payload: Dictionary) -> void:
 	router = main
@@ -224,7 +227,9 @@ func render_snapshot(next_snapshot: Dictionary) -> void:
 	_render_piles(player, opponent)
 	_render_hand(player.get("hand", []))
 	_release_missing_card_views(_public_instance_ids(snapshot))
+	_remember_card_titles()
 	_refresh_coach()
+	call_deferred("_refresh_guard_links")
 
 
 func _render_piles(player: Dictionary, opponent: Dictionary) -> void:
@@ -242,7 +247,7 @@ func _sanitize_hidden_opponent_hand() -> void:
 			hand[index] = {"hidden": true}
 
 func render_events(events: Array) -> void:
-	%Timeline.render_events(events)
+	%Timeline.render_events(events, _card_titles)
 
 func set_animation_mode(mode: String) -> void:
 	animation_mode = mode if mode in ["on", "reduced"] else "on"
@@ -706,6 +711,87 @@ func _status_strip(side: Dictionary, include_discard: bool) -> String:
 func _install_lane_chrome() -> void:
 	_attach_lane(get_node("Margin/Columns/Board/OpponentArea") as Control, Color(0.42, 0.18, 0.14, 0.22), "OpponentLaneChip", "zone.enemy_support")
 	_attach_lane(get_node("Margin/Columns/Board/PlayerArea") as Control, Color(0.16, 0.28, 0.38, 0.24), "PlayerLaneChip", "zone.player_support")
+
+
+func _remember_card_titles() -> void:
+	for card in _public_cards():
+		var instance_id := str(card.get("instance_id", ""))
+		var title := str(card.get("title", ""))
+		if not instance_id.is_empty() and not title.is_empty():
+			_card_titles[instance_id] = title
+
+
+func _public_cards() -> Array:
+	var cards: Array = []
+	var players: Dictionary = snapshot.get("players", {})
+	for side_id in ["player", "opponent"]:
+		var side: Dictionary = players.get(side_id, {})
+		for zone_name in ["hand", "support_line", "discard"]:
+			for slot in side.get(zone_name, []):
+				if slot is Dictionary:
+					cards.append(slot)
+		var headquarters: Variant = side.get("headquarters", {})
+		if headquarters is Dictionary and not (headquarters as Dictionary).is_empty():
+			cards.append(headquarters)
+	for slot in snapshot.get("frontline", []):
+		if slot is Dictionary:
+			cards.append(slot)
+	return cards
+
+
+func _refresh_guard_links() -> void:
+	if not is_node_ready():
+		return
+	var segments: Array = []
+	_collect_guard_segments(%PlayerSupport, %PlayerHQ, segments)
+	_collect_guard_segments(%OpponentSupport, %OpponentHQ, segments)
+	_collect_guard_segments(%Frontline, null, segments)
+	_guard_segments = segments
+	queue_redraw()
+
+
+func _draw() -> void:
+	for segment in _guard_segments:
+		if not (segment is Dictionary):
+			continue
+		var from: Vector2 = segment.get("from", Vector2.ZERO)
+		var to: Vector2 = segment.get("to", Vector2.ZERO)
+		var color: Color = segment.get("color", Color(0.86, 0.74, 0.42, 0.7))
+		draw_line(from, to, color, 2.2, true)
+		draw_circle(from, 3.2, color)
+		draw_circle(to, 2.4, color)
+
+
+func _collect_guard_segments(zone, hq, segments: Array) -> void:
+	var cards: Array = zone.card_views()
+	for card in cards:
+		if not _card_has_keyword(card.card_data, "Guard"):
+			continue
+		var from := _to_link_space(card.get_global_rect().get_center())
+		var slot := int(card.card_data.get("slot", -1))
+		var owner_id := str(card.card_data.get("owner_id", ""))
+		if hq != null and slot in [1, 2]:
+			segments.append({"from": from, "to": _to_link_space(hq.get_global_rect().get_center()), "color": Color(0.86, 0.74, 0.42, 0.78)})
+		for other in cards:
+			if other == card:
+				continue
+			if str(other.card_data.get("owner_id", "")) != owner_id:
+				continue
+			var other_slot := int(other.card_data.get("slot", -2))
+			if absi(other_slot - slot) != 1:
+				continue
+			segments.append({"from": from, "to": _to_link_space(other.get_global_rect().get_center()), "color": Color(0.78, 0.7, 0.4, 0.55)})
+
+
+func _to_link_space(point: Vector2) -> Vector2:
+	return get_global_transform().affine_inverse() * point
+
+
+func _card_has_keyword(card: Dictionary, name: String) -> bool:
+	for keyword in card.get("keywords", []):
+		if str(keyword) == name:
+			return true
+	return false
 
 
 func _attach_lane(host: Control, tint: Color, chip_name: String, key: String) -> void:

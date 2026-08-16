@@ -35,6 +35,7 @@ static func run(t) -> void:
 	await _test_deck_builder_readiness_containment(t)
 	await _test_match_coach_and_card_states(t)
 	await _test_board_unit_duty_states(t)
+	await _test_guard_links_and_timeline_report(t)
 	await _test_rejection_refresh_ordering(t)
 	await _test_end_turn_semantic_states(t)
 	await _test_unavailable_card_does_not_submit(t)
@@ -192,6 +193,38 @@ static func _test_board_unit_duty_states(t) -> void:
 		t.assert_eq(cards[1].get_node("Frame/Type").text, LocaleScript.ui("duty.spent"), "spent unit shows duty caption")
 		t.assert_eq(cards[2].action_state, "legal", "ready unit is highlighted")
 		t.assert_eq(cards[2].get_node("Frame/Type").text, LocaleScript.ui("duty.ready"), "ready unit shows duty caption")
+	view.queue_free()
+	await Engine.get_main_loop().process_frame
+
+
+static func _test_guard_links_and_timeline_report(t) -> void:
+	var view = MatchViewScene.instantiate()
+	Engine.get_main_loop().root.add_child(view)
+	Engine.get_main_loop().root.size = Vector2i(1280, 720)
+	var snapshot := _snapshot()
+	snapshot.players.player.support_line = [
+		{"instance_id": "neighbor", "title": "Rifle Platoon", "category": "Unit", "owner_id": "player", "slot": 0, "keywords": []},
+		{"instance_id": "guard-unit", "title": "Guards Rifle Section", "category": "Unit", "owner_id": "player", "slot": 1, "keywords": ["Guard"]},
+		null,
+		null,
+	]
+	snapshot.players.player["headquarters"] = {"instance_id": "player-hq", "title": "US Command Post", "category": "Headquarters"}
+	view.render_snapshot(snapshot)
+	await view.get_tree().process_frame
+	await view.get_tree().process_frame
+	t.assert_true(view._guard_segments.size() >= 2, "Guard links HQ and the adjacent unit")
+	view.render_events([
+		{"type": "card_deployed", "player_id": "player", "instance_id": "guard-unit"},
+		{"type": "credit_spent", "player_id": "player"},
+		{"type": "damage_dealt", "player_id": "opponent", "damage": 3, "target_id": "neighbor"},
+	])
+	var lines: Array[String] = []
+	for child in view.get_node("%Timeline").get_children():
+		if child is Label:
+			lines.append(child.text)
+	t.assert_true(lines.size() == 2, "timeline report skips credit noise")
+	t.assert_true(LocaleScript.ui("event.card_deployed") in lines[0] and "Guards Rifle Section" in lines[0], "deploy report names the card")
+	t.assert_true(LocaleScript.ui("event.damage_dealt") in lines[1] and "3" in lines[1], "damage report includes the amount")
 	view.queue_free()
 	await Engine.get_main_loop().process_frame
 

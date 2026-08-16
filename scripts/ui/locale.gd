@@ -79,6 +79,7 @@ const STRINGS := {
 	"event.credit_spent": {"zh": "花费信用", "en": "Credit spent"},
 	"event.match_ended": {"zh": "对局结束", "en": "Match ended"},
 	"event.frontline_changed": {"zh": "前线易手", "en": "Frontline changed"},
+	"event.player_conceded": {"zh": "认输", "en": "Conceded"},
 	"actor.you": {"zh": "你", "en": "You"},
 	"actor.opponent": {"zh": "对方", "en": "Enemy"},
 	"reason.locked": {"zh": "等待对方行动结束。", "en": "Wait for the opponent action to finish."},
