@@ -3,6 +3,15 @@ extends SceneTree
 const ART_SLUGS := [
 	"us-infantry", "us-support", "us-armor", "us-artillery", "us-fighter", "us-bomber",
 	"su-infantry", "su-support", "su-armor", "su-artillery", "su-fighter", "su-bomber",
+	"us-hq", "us-rifle-platoon", "us-combat-engineers", "us-field-hospital", "us-supply-column",
+	"us-forward-observers", "us-p40-patrol", "us-rapid-resupply", "us-signal-watch",
+	"us-ranger-company", "us-armored-group", "us-field-battery", "us-emergency-repairs",
+	"us-tank-hunters", "us-b25-strike-group", "us-air-superiority", "us-combined-arms",
+	"su-hq", "su-guards-rifle", "su-siberian-volunteers", "su-combat-sappers",
+	"su-medical-battalion", "su-rail-convoy", "su-partisan-scouts", "su-massed-assault",
+	"su-maskirovka", "su-t34-spearhead", "su-heavy-breakthrough", "su-katyusha-battery",
+	"su-hold-the-line", "su-yak-patrol", "su-pe2-bomber-wing", "su-deep-battle",
+	"su-artillery-preparation",
 ]
 const UI_ASSETS := [
 	"badge_attack", "badge_cost", "badge_defense",
