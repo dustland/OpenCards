@@ -1,12 +1,14 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/match_view.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/ui/zone_view.gd" id="2"]
 [ext_resource type="Script" path="res://scripts/ui/timeline_view.gd" id="3"]
 [ext_resource type="PackedScene" path="res://scenes/ui/card_view.tscn" id="4"]
+[ext_resource type="PackedScene" path="res://scenes/ui/hq_view.tscn" id="5"]
+[ext_resource type="Texture2D" path="res://game_assets/ui/card_back.png" id="6"]
 
 [sub_resource type="StyleBoxFlat" id="TimelineSurface"]
-bg_color = Color(0.117647, 0.152941, 0.152941, 1)
+bg_color = Color(0.117647, 0.152941, 0.152941, 0.92)
 border_width_left = 1
 border_width_top = 1
 border_width_right = 1
@@ -16,6 +18,18 @@ corner_radius_top_left = 3
 corner_radius_top_right = 3
 corner_radius_bottom_right = 3
 corner_radius_bottom_left = 3
+
+[sub_resource type="StyleBoxFlat" id="PileSurface"]
+bg_color = Color(0.075, 0.095, 0.082, 0.75)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.32, 0.30, 0.21, 0.9)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
 
 [node name="MatchView" type="Control"]
 layout_mode = 3
@@ -35,6 +49,8 @@ offset_left = 8.0
 offset_top = 6.0
 offset_right = -8.0
 offset_bottom = -6.0
+grow_horizontal = 2
+grow_vertical = 2
 
 [node name="Columns" type="HBoxContainer" parent="Margin"]
 layout_mode = 2
@@ -45,7 +61,6 @@ unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 2
-
 [node name="Top" type="HBoxContainer" parent="Margin/Columns/Board"]
 layout_mode = 2
 [node name="OpponentLabel" type="Label" parent="Margin/Columns/Board/Top"]
@@ -68,7 +83,7 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-[node name="OpponentHQ" parent="Margin/Columns/Board/OpponentArea/HQHolder" instance=ExtResource("4")]
+[node name="OpponentHQ" parent="Margin/Columns/Board/OpponentArea/HQHolder" instance=ExtResource("5")]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(108, 118)
 layout_mode = 0
@@ -119,7 +134,7 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-[node name="PlayerHQ" parent="Margin/Columns/Board/PlayerArea/HQHolder" instance=ExtResource("4")]
+[node name="PlayerHQ" parent="Margin/Columns/Board/PlayerArea/HQHolder" instance=ExtResource("5")]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(108, 118)
 layout_mode = 0
@@ -210,19 +225,221 @@ text = "No legal action is available."
 vertical_alignment = 1
 text_overrun_behavior = 3
 
-[node name="HandScroll" type="ScrollContainer" parent="Margin/Columns/Board"]
+[node name="HandArea" type="HBoxContainer" parent="Margin/Columns/Board"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 8
+
+[node name="OpponentPiles" type="VBoxContainer" parent="Margin/Columns/Board/HandArea"]
+custom_minimum_size = Vector2(52, 0)
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="OpponentDeckPile" type="Panel" parent="Margin/Columns/Board/HandArea/OpponentPiles"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(48, 64)
+layout_mode = 2
+size_flags_vertical = 0
+theme_override_styles/panel = SubResource("PileSurface")
+
+[node name="PileArt" type="TextureRect" parent="Margin/Columns/Board/HandArea/OpponentPiles/OpponentDeckPile"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 7.0
+offset_top = 4.0
+offset_right = -7.0
+offset_bottom = -4.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 6
+self_modulate = Color(0.98, 0.78, 0.72, 1)
+texture = ExtResource("6")
+
+[node name="OpponentDeckCount" type="Label" parent="Margin/Columns/Board/HandArea/OpponentPiles/OpponentDeckPile"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -20.0
+offset_top = -10.0
+offset_right = 20.0
+offset_bottom = 10.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_outline_color = Color(0.06, 0.06, 0.05, 0.9)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 15
+text = "0"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="OpponentDiscardPile" type="Panel" parent="Margin/Columns/Board/HandArea/OpponentPiles"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(48, 64)
+layout_mode = 2
+size_flags_vertical = 0
+theme_override_styles/panel = SubResource("PileSurface")
+
+[node name="PileArt" type="TextureRect" parent="Margin/Columns/Board/HandArea/OpponentPiles/OpponentDiscardPile"]
+self_modulate = Color(0.62, 0.58, 0.5, 1)
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 7.0
+offset_top = 4.0
+offset_right = -7.0
+offset_bottom = -4.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 6
+texture = ExtResource("6")
+
+[node name="OpponentDiscardCount" type="Label" parent="Margin/Columns/Board/HandArea/OpponentPiles/OpponentDiscardPile"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -20.0
+offset_top = -10.0
+offset_right = 20.0
+offset_bottom = 10.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_outline_color = Color(0.06, 0.06, 0.05, 0.9)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 15
+text = "0"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="HandScroll" type="ScrollContainer" parent="Margin/Columns/Board/HandArea"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 166)
 layout_mode = 2
-size_flags_vertical = 3
+size_flags_horizontal = 3
 horizontal_scroll_mode = 2
 vertical_scroll_mode = 0
-[node name="PlayerHand" type="HBoxContainer" parent="Margin/Columns/Board/HandScroll"]
+[node name="PlayerHand" type="Control" parent="Margin/Columns/Board/HandArea/HandScroll"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-alignment = 1
-theme_override_constants/separation = 8
+custom_minimum_size = Vector2(0, 166)
+
+[node name="PlayerPiles" type="VBoxContainer" parent="Margin/Columns/Board/HandArea"]
+custom_minimum_size = Vector2(52, 0)
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="PlayerDeckPile" type="Panel" parent="Margin/Columns/Board/HandArea/PlayerPiles"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(48, 64)
+layout_mode = 2
+size_flags_vertical = 0
+theme_override_styles/panel = SubResource("PileSurface")
+
+[node name="PileArt" type="TextureRect" parent="Margin/Columns/Board/HandArea/PlayerPiles/PlayerDeckPile"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 7.0
+offset_top = 4.0
+offset_right = -7.0
+offset_bottom = -4.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 6
+self_modulate = Color(0.74, 0.84, 0.96, 1)
+texture = ExtResource("6")
+
+[node name="PlayerDeckCount" type="Label" parent="Margin/Columns/Board/HandArea/PlayerPiles/PlayerDeckPile"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -20.0
+offset_top = -10.0
+offset_right = 20.0
+offset_bottom = 10.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_outline_color = Color(0.06, 0.06, 0.05, 0.9)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 15
+text = "0"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="PlayerDiscardPile" type="Panel" parent="Margin/Columns/Board/HandArea/PlayerPiles"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(48, 64)
+layout_mode = 2
+size_flags_vertical = 0
+theme_override_styles/panel = SubResource("PileSurface")
+
+[node name="PileArt" type="TextureRect" parent="Margin/Columns/Board/HandArea/PlayerPiles/PlayerDiscardPile"]
+self_modulate = Color(0.62, 0.58, 0.5, 1)
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 7.0
+offset_top = 4.0
+offset_right = -7.0
+offset_bottom = -4.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 6
+texture = ExtResource("6")
+
+[node name="PlayerDiscardCount" type="Label" parent="Margin/Columns/Board/HandArea/PlayerPiles/PlayerDiscardPile"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -20.0
+offset_top = -10.0
+offset_right = 20.0
+offset_bottom = 10.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_outline_color = Color(0.06, 0.06, 0.05, 0.9)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 15
+text = "0"
+horizontal_alignment = 1
+vertical_alignment = 1
 
 [node name="TimelinePanel" type="PanelContainer" parent="Margin/Columns"]
 unique_name_in_owner = true

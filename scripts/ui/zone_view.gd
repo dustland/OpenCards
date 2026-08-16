@@ -106,18 +106,22 @@ func grid_column_centers() -> Array[float]:
 
 func _slot_style(zone: String) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
+	var edge := Color("6f7a6c")
 	match zone:
 		"frontline":
-			style.bg_color = Color("2a3431")
-			style.border_color = Color("667b7f")
+			style.bg_color = Color(0.185, 0.215, 0.195, 0.62)
+			edge = Color("7c8d84")
 		"opponent_support":
-			style.bg_color = Color("332d29")
-			style.border_color = Color("76584f")
+			style.bg_color = Color(0.21, 0.185, 0.165, 0.62)
+			edge = Color("8a6b60")
 		_:
-			style.bg_color = Color("273237")
-			style.border_color = Color("526d7d")
+			style.bg_color = Color(0.16, 0.195, 0.215, 0.62)
+			edge = Color("6d8496")
+	style.border_color = edge
 	style.set_border_width_all(1)
-	style.set_corner_radius_all(3)
+	style.border_width_top = 2
+	style.border_width_bottom = 3
+	style.set_corner_radius_all(4)
 	return style
 
 func set_input_locked(locked: bool) -> void:

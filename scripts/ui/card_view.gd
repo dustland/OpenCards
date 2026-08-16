@@ -12,10 +12,20 @@ const MODE_SIZES := {
 	"hidden": Vector2(116, 162),
 }
 
+const RARITY_PIP_COLORS := {
+	"Standard": Color("9aa06b"),
+	"Limited": Color("6fa3c4"),
+	"Special": Color("b084c9"),
+	"Elite": Color("e3c35c"),
+}
+
 var card_data: Dictionary = {}
 var mode := "catalog"
 var action_state := "normal"
 var _base_tooltip := ""
+var _hover_active := false
+var _rest_position := Vector2.ZERO
+var _hover_tween: Tween
 
 
 func _ready() -> void:
@@ -24,6 +34,7 @@ func _ready() -> void:
 
 func bind(data: Dictionary, display_mode: String) -> void:
 	assert(MODE_SIZES.has(display_mode), "Unsupported card display mode: %s" % display_mode)
+	_reset_hover()
 	mode = display_mode
 	size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -37,6 +48,7 @@ func bind(data: Dictionary, display_mode: String) -> void:
 	get_node("Frame").visible = not hidden
 	_base_tooltip = "" if hidden else str(data.get("description", ""))
 	tooltip_text = _base_tooltip
+	_apply_back_tint(data)
 	if hidden:
 		_clear_face()
 		return
@@ -75,8 +87,9 @@ func set_action_state(state: String, reason: String = "") -> void:
 			border = Color("fff0a0")
 		"unavailable":
 			border = Color("59615d")
-	add_theme_stylebox_override("normal", _card_style(Color("171d1a") if state == "unavailable" else Color("1b241e"), border, 4 if state in ["legal", "selected"] else 2))
-	add_theme_stylebox_override("hover", _card_style(Color("202824"), border.lightened(0.12), 4 if state in ["legal", "selected"] else 2))
+	var glow := state in ["legal", "selected"]
+	add_theme_stylebox_override("normal", _card_style(Color("171d1a") if state == "unavailable" else Color("1b241e"), border, 4 if glow else 2))
+	add_theme_stylebox_override("hover", _card_style(Color("202824"), border.lightened(0.12), 5 if glow else 3))
 	self_modulate = Color(0.68, 0.68, 0.68, 1.0) if state == "unavailable" else Color.WHITE
 
 
@@ -107,10 +120,62 @@ func _instance_id() -> String:
 	return str(card_data.get("instance_id", ""))
 
 
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_MOUSE_ENTER:
+		_set_hover_lift(true)
+	elif what == NOTIFICATION_MOUSE_EXIT:
+		_set_hover_lift(false)
+	elif what == NOTIFICATION_PREDELETE and _hover_tween != null and _hover_tween.is_valid():
+		_hover_tween.kill()
+
+
+func _reset_hover() -> void:
+	_hover_active = false
+	if _hover_tween != null and _hover_tween.is_valid():
+		_hover_tween.kill()
+	z_index = 0
+	scale = Vector2.ONE
+
+
+# Hand cards lift and raise above neighbours on hover for readability.
+func _set_hover_lift(lift: bool) -> void:
+	if lift == _hover_active:
+		return
+	if lift and (mode != "hand" or action_state == "unavailable" or not is_inside_tree()):
+		return
+	_hover_active = lift
+	if _hover_tween != null and _hover_tween.is_valid():
+		_hover_tween.kill()
+	pivot_offset = size * 0.5
+	_hover_tween = create_tween()
+	if lift:
+		_rest_position = position
+		z_index = 16
+		_hover_tween.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT).set_parallel(true)
+		_hover_tween.tween_property(self, "position:y", _rest_position.y - 20.0, 0.10)
+		_hover_tween.tween_property(self, "scale", Vector2(1.12, 1.12), 0.10)
+	else:
+		_hover_tween.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT).set_parallel(true)
+		_hover_tween.tween_property(self, "position:y", _rest_position.y, 0.08)
+		_hover_tween.tween_property(self, "scale", Vector2.ONE, 0.08)
+		_hover_tween.chain().tween_callback(func() -> void: z_index = 0)
+
+
 func _clear_face() -> void:
 	for path in ["Frame/Title", "Frame/Type", "Frame/Costs/Deployment", "Frame/Costs/Operation", "Frame/Description", "Frame/Keywords", "Frame/Stats/Attack", "Frame/Stats/Defense"]:
 		get_node(path).text = ""
 	get_node("Frame/Artwork").texture = _fallback_art()
+
+
+func _apply_back_tint(data: Dictionary) -> void:
+	var tint := Color.WHITE
+	var owner := str(data.get("owner_id", ""))
+	var nation := str(data.get("nation", ""))
+	if owner == "player" or nation == "UnitedStates":
+		tint = Color(0.74, 0.84, 0.96)
+	elif owner == "opponent" or nation == "SovietUnion":
+		tint = Color(0.98, 0.78, 0.72)
+	get_node("CardBack/BackTexture").self_modulate = tint
 
 
 func _apply_mode_layout() -> void:
@@ -123,6 +188,9 @@ func _apply_mode_layout() -> void:
 	var keywords := get_node("Frame/Keywords") as Control
 	var stats := get_node("Frame/Stats") as Control
 	var category_strip := get_node("Frame/CategoryStrip") as Control
+	var title_banner := get_node("Frame/TitleBanner") as Control
+	var artwork_trim := get_node("Frame/ArtworkTrim") as Control
+	var rarity_pip := get_node("Frame/RarityPip") as Control
 	frame.clip_contents = true
 	artwork.visible = mode != "hidden"
 	title.visible = mode != "hidden"
@@ -131,6 +199,9 @@ func _apply_mode_layout() -> void:
 	stats.visible = mode != "hidden"
 	description.visible = mode == "catalog"
 	keywords.visible = mode == "catalog"
+	title_banner.visible = mode != "hidden"
+	artwork_trim.visible = mode != "hidden"
+	rarity_pip.visible = mode == "catalog"
 
 	match mode:
 		"catalog":
@@ -138,16 +209,21 @@ func _apply_mode_layout() -> void:
 			type.add_theme_font_size_override("font_size", 13)
 			_set_rect(title, 5, 3, 137, 27)
 			_set_rect(type, 141, 3, 167, 27)
-			_set_rect(costs, 123, 31, 165, 50)
+			_set_rect(title_banner, 2, 1, 170, 29)
+			_set_rect(costs, 123, 31, 165, 52)
 			_set_rect(artwork, 5, 54, 167, 126)
+			_set_rect(artwork_trim, 5, 54, 167, 126)
 			_set_rect(description, 6, 130, 166, 188)
 			_set_rect(keywords, 6, 192, 166, 211)
 			_set_rect(stats, 106, 216, 166, 237)
 			_set_rect(category_strip, 0, 0, 3, 244)
+			_set_rect(rarity_pip, 156, 3, 168, 9)
 		"hand":
 			type.visible = false
 			_set_rect(title, 4, 2, 104, 29)
+			_set_rect(title_banner, 2, 1, 102, 30)
 			_set_rect(artwork, 4, 32, 104, 111)
+			_set_rect(artwork_trim, 4, 32, 104, 111)
 			_set_rect(costs, 4, 114, 46, 133)
 			_set_rect(stats, 44, 128, 104, 149)
 			_set_rect(category_strip, 0, 0, 3, 154)
@@ -157,7 +233,9 @@ func _apply_mode_layout() -> void:
 			costs.add_theme_constant_override("separation", 2)
 			stats.add_theme_constant_override("separation", 3)
 			_set_rect(title, 4, 2, 96, 35)
+			_set_rect(title_banner, 2, 1, 94, 34)
 			_set_rect(artwork, 4, 38, 96, 79)
+			_set_rect(artwork_trim, 4, 38, 96, 79)
 			_set_rect(costs, 3, 84, 24, 105)
 			_set_rect(stats, 51, 84, 96, 105)
 			_set_rect(category_strip, 0, 0, 3, 110)
@@ -178,13 +256,16 @@ func _fit_title(value: String) -> void:
 func _apply_semantic_accents(data: Dictionary) -> void:
 	var category := str(data.get("category", "Unit"))
 	var category_colors := {
-		"Unit": Color("82936f"),
-		"Order": Color("b28c57"),
-		"Countermeasure": Color("807b9b"),
-		"Headquarters": Color("8a9188"),
+		"Unit": Color("8fa06f"),
+		"Order": Color("c7a15e"),
+		"Countermeasure": Color("8e88b0"),
+		"Headquarters": Color("9aa398"),
 	}
-	var category_color: Color = category_colors.get(category, Color("82936f"))
+	var category_color: Color = category_colors.get(category, Color("8fa06f"))
 	get_node("Frame/CategoryStrip").color = category_color
+	var rarity := str(data.get("rarity", ""))
+	var pip := get_node("Frame/RarityPip") as ColorRect
+	pip.color = RARITY_PIP_COLORS.get(rarity, Color("9aa06b"))
 	var owner := str(data.get("owner_id", ""))
 	var nation := str(data.get("nation", ""))
 	var border := Color("a88f58")
@@ -193,7 +274,7 @@ func _apply_semantic_accents(data: Dictionary) -> void:
 	elif owner == "opponent" or nation == "SovietUnion":
 		border = Color("a96d5e")
 	add_theme_stylebox_override("normal", _card_style(Color("1b241e"), border, 2))
-	add_theme_stylebox_override("hover", _card_style(Color("243029"), border.lightened(0.15), 2))
+	add_theme_stylebox_override("hover", _card_style(Color("243029"), border.lightened(0.15), 3))
 	add_theme_stylebox_override("pressed", _card_style(Color("151d18"), category_color.lightened(0.12), 3))
 
 
@@ -202,7 +283,8 @@ func _card_style(fill: Color, border: Color, width: int) -> StyleBoxFlat:
 	style.bg_color = fill
 	style.border_color = border
 	style.set_border_width_all(width)
-	style.set_corner_radius_all(4)
+	style.set_corner_radius_all(6)
+	style.set_expand_margin_all(1.0 if width >= 4 else 0.0)
 	return style
 
 

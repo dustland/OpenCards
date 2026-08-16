@@ -77,6 +77,7 @@ static func run_task5(t) -> void:
 	_test_match_label_reports_active_player_and_player_zones(t)
 	await _test_match_concede_button_routes_concede_action(t)
 	_test_deck_builder_falls_back_when_selected_deck_invalid(t)
+	await _test_card_visual_badges_fan_hover_and_ghost(t)
 
 
 static func run_task6(t) -> void:
@@ -127,8 +128,8 @@ static func _test_runtime_views_load_public_card_art(t) -> void:
 	await Engine.get_main_loop().process_frame
 	var hand_art = match_view.get_node("%PlayerHand").get_child(0).get_node("Frame/Artwork")
 	t.assert_eq(hand_art.texture.resource_path, image_path, "match player hand loads generated texture")
-	t.assert_eq(match_view.get_node("%PlayerHQ/Frame/Artwork").texture.resource_path, image_path, "match player HQ loads generated texture")
-	t.assert_eq(match_view.get_node("%OpponentHQ/Frame/Artwork").texture.resource_path, image_path, "match opponent HQ loads generated texture")
+	t.assert_eq(match_view.get_node("%PlayerHQ/Emblem").texture.resource_path, "res://game_assets/ui/hq_us.png", "match player HQ renders the US emblem")
+	t.assert_eq(match_view.get_node("%OpponentHQ/Emblem").texture.resource_path, "res://game_assets/ui/hq_su.png", "match opponent HQ renders the Soviet emblem")
 	match_view.queue_free()
 	await Engine.get_main_loop().process_frame
 
@@ -458,6 +459,61 @@ static func _test_match_concede_button_routes_concede_action(t) -> void:
 	t.assert_eq(submitted.size(), 0, "concede confirmation is ignored outside the player's turn")
 	view.queue_free()
 	await Engine.get_main_loop().process_frame
+
+
+static func _test_card_visual_badges_fan_hover_and_ghost(t) -> void:
+	# Card face badges render behind the numeric labels.
+	var card = CardViewScene.instantiate()
+	Engine.get_main_loop().root.add_child(card)
+	card.bind(_card_data(), "hand")
+	t.assert_true(card.get_node("Frame/Costs/Deployment/BadgeCost").texture != null, "deployment badge art present")
+	t.assert_true(card.get_node("Frame/Stats/Attack/BadgeAttack").texture != null, "attack badge art present")
+	t.assert_true(card.get_node("Frame/Stats/Defense/BadgeDefense").texture != null, "defense badge art present")
+	t.assert_true(card.get_node("CardBack/BackTexture").texture != null, "card back uses generated texture")
+	# Hand hover lifts and restores.
+	var base_y := card.position.y
+	card._set_hover_lift(true)
+	for frame in range(12): await Engine.get_main_loop().process_frame
+	t.assert_true(card.position.y < base_y, "hover lifts hand cards")
+	t.assert_eq(card.z_index > 0, true, "hover raises hand card z order")
+	card._set_hover_lift(false)
+	for frame in range(12): await Engine.get_main_loop().process_frame
+	t.assert_eq(card.position.y, base_y, "hover exit restores hand card position")
+	t.assert_eq(card.scale, Vector2.ONE, "hover exit restores hand card scale")
+	card.free()
+
+	# Hand fan: edge cards rotate opposite ways and the arc dips at the edges.
+	var view = MatchViewScene.instantiate()
+	Engine.get_main_loop().root.add_child(view)
+	view.render_snapshot(_match_snapshot(3))
+	await Engine.get_main_loop().process_frame
+	var hand := view.get_node("%PlayerHand")
+	var first: Control = hand.get_child(0)
+	var middle: Control = hand.get_child(1)
+	var last: Control = hand.get_child(2)
+	t.assert_true(first.rotation_degrees < -0.5, "fan left edge rotates counterclockwise")
+	t.assert_true(last.rotation_degrees > 0.5, "fan right edge rotates clockwise")
+	t.assert_eq(middle.rotation_degrees, 0.0, "fan center stays level")
+	t.assert_true(absf(first.rotation_degrees) - absf(middle.rotation_degrees) > 0.5, "fan rotation spreads across the hand")
+	t.assert_true(first.position.x < middle.position.x and middle.position.x < last.position.x, "fan cards advance left to right")
+	t.assert_true(hand.custom_minimum_size.x > 300.0, "fan reserves horizontal scroll width")
+
+	# HQ view keeps the interaction surface of a card slot.
+	t.assert_true(view.get_node("%PlayerHQ").has_signal("card_pressed"), "HQ view exposes card_pressed")
+	t.assert_true(view.get_node("%OpponentHQ").has_signal("card_dropped"), "HQ view exposes card_dropped")
+	t.assert_eq(view.get_node("%PlayerHQ/HpBadge/HpLabel").text, "20", "HQ view renders headquarters defense")
+	view.free()
+
+	# The motion proxy renders as a real card face.
+	var director = load("res://scripts/ui/card_motion_director.gd").new()
+	var motion_view = MatchViewScene.instantiate()
+	Engine.get_main_loop().root.add_child(motion_view)
+	var ghost = director._ghost_card(motion_view, Rect2(10, 10, 116, 162), _card_data())
+	t.assert_true(ghost.is_in_group("card_motion_proxy"), "motion ghost keeps the proxy group")
+	t.assert_eq(ghost.get_node("Frame/Title").text, "Rifle Platoon", "motion ghost renders the card title")
+	t.assert_eq(ghost.mode, "hand", "motion ghost matches hand geometry")
+	director.cancel()
+	motion_view.free()
 
 
 static func _match_snapshot(hand_count := 0) -> Dictionary:

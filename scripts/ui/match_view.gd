@@ -125,8 +125,8 @@ class MatchInteractionModel:
 
 
 func _ready() -> void:
-	%OpponentHQ.bind({}, "battlefield")
-	%PlayerHQ.bind({}, "battlefield")
+	%OpponentHQ.bind_hq({}, "SovietUnion", 0)
+	%PlayerHQ.bind_hq({}, "UnitedStates", 0)
 	%OpponentHQ.card_pressed.connect(_on_board_card_pressed)
 	%OpponentHQ.card_dropped.connect(_on_target_dropped)
 	%OpponentSupport.card_pressed.connect(_on_board_card_pressed)
@@ -157,7 +157,7 @@ func _apply_responsive_layout() -> void:
 		return
 	var compact := size.x <= 1000.0
 	%TimelinePanel.custom_minimum_size.x = 136.0 if compact else 148.0
-	%HandScroll.custom_minimum_size.y = 164.0 if compact else 170.0
+	%HandScroll.custom_minimum_size.y = 170.0 if compact else 178.0
 	var row_height := 118.0
 	for path in ["Margin/Columns/Board/OpponentArea", "Margin/Columns/Board/Frontline", "Margin/Columns/Board/PlayerArea"]:
 		(get_node(path) as Control).custom_minimum_size.y = row_height
@@ -200,11 +200,19 @@ func render_snapshot(next_snapshot: Dictionary) -> void:
 	%OpponentSupport.render(opponent.get("support_line", []), false, _resolve_card_view)
 	%Frontline.render(snapshot.get("frontline", []), false, _resolve_card_view)
 	%PlayerSupport.render(player.get("support_line", []), false, _resolve_card_view)
-	%OpponentHQ.bind(opponent.get("headquarters", {}), "battlefield")
-	%PlayerHQ.bind(player.get("headquarters", {}), "battlefield")
+	%OpponentHQ.bind_hq(opponent.get("headquarters", {}), str(opponent.get("nation", "SovietUnion")), int(opponent.get("hq_defense", 0)))
+	%PlayerHQ.bind_hq(player.get("headquarters", {}), str(player.get("nation", "UnitedStates")), int(player.get("hq_defense", 0)))
+	_render_piles(player, opponent)
 	_render_hand(player.get("hand", []))
 	_release_missing_card_views(_public_instance_ids(snapshot))
 	_refresh_coach()
+
+
+func _render_piles(player: Dictionary, opponent: Dictionary) -> void:
+	%PlayerDeckCount.text = str(int(player.get("deck_count", 0)))
+	%PlayerDiscardCount.text = str((player.get("discard", []) as Array).size())
+	%OpponentDeckCount.text = str(int(opponent.get("deck_count", 0)))
+	%OpponentDiscardCount.text = str((opponent.get("discard", []) as Array).size())
 
 
 func _sanitize_hidden_opponent_hand() -> void:
@@ -247,6 +255,25 @@ func deck_edge_rect(player_id: String) -> Rect2:
 func command_area_rect() -> Rect2:
 	return (%AnimationButton as Control).get_global_rect()
 
+
+# Emphasized by CardMotionDirector on credit_refilled events.
+func pulse_credit() -> void:
+	if not is_node_ready():
+		return
+	%CreditLabel.pivot_offset = (%CreditLabel as Control).size * 0.5
+	var tween := create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tween.tween_property(%CreditLabel, "scale", Vector2(1.28, 1.28), 0.10)
+	tween.tween_property(%CreditLabel, "scale", Vector2.ONE, 0.14)
+
+
+func flash_hq(instance_id: String) -> void:
+	if not is_node_ready():
+		return
+	for hq in [%PlayerHQ, %OpponentHQ]:
+		if str(hq.card_data.get("instance_id", "")) == instance_id:
+			hq.flash_damage()
+			return
+
 func visible_card_rects() -> Dictionary:
 	var result := {}
 	for card in _card_registry.values():
@@ -273,13 +300,13 @@ func snapshot_card_rects(value: Dictionary) -> Dictionary:
 			if not instance_id.is_empty(): result[instance_id] = (pair[1] as Control).get_global_rect()
 	var hand: Array = players.get("player", {}).get("hand", [])
 	var hand_rect := (%HandScroll as Control).get_global_rect()
-	var total_width := hand.size() * 116.0 + maxf(0.0, hand.size() - 1.0) * 8.0
-	var left := hand_rect.position.x + maxf(0.0, (hand_rect.size.x - total_width) * 0.5)
-	var top := hand_rect.position.y + maxf(0.0, (hand_rect.size.y - 162.0) * 0.5)
+	var transforms := _hand_layout(hand.size())
 	for index in range(hand.size()):
 		if hand[index] is Dictionary and not bool(hand[index].get("hidden", false)):
 			var instance_id := str(hand[index].get("instance_id", ""))
-			if not instance_id.is_empty(): result[instance_id] = Rect2(left + index * 124.0, top, 116.0, 162.0)
+			if not instance_id.is_empty():
+				var pos: Vector2 = transforms[index].pos
+				result[instance_id] = Rect2(hand_rect.position.x + pos.x + HAND_MARGIN, hand_rect.position.y + pos.y, HAND_CARD_WIDTH, HAND_CARD_HEIGHT)
 	return result
 
 func _add_zone_snapshot_rects(result: Dictionary, cards: Array, zone: ZoneView) -> void:
@@ -332,9 +359,39 @@ func show_rejection(code: String, message: String) -> void:
 	%StatusLabel.text = message
 	_refresh_coach()
 
+const HAND_CARD_WIDTH := 116.0
+const HAND_CARD_HEIGHT := 162.0
+const HAND_ADVANCE := 108.0
+const HAND_MAX_ROTATION := 9.0
+const HAND_ARC_DEPTH := 8.0
+const HAND_MARGIN := 16.0
+
+
+# Kards-style hand fan: cards rotate from -10deg to +10deg and dip at the
+# edges. Both the live view and the motion snapshot rects use this layout so
+# animation start/end positions always match what the player sees.
+func _hand_layout(count: int) -> Array:
+	var transforms := []
+	for index in range(count):
+		var t := 0.5 if count <= 1 else float(index) / float(count - 1)
+		var center_offset := (2.0 * t - 1.0)
+		var rotation_deg := HAND_MAX_ROTATION * center_offset
+		var arc := HAND_ARC_DEPTH * center_offset * center_offset
+		transforms.append({
+			"pos": Vector2(index * HAND_ADVANCE, arc),
+			"rot": rotation_deg,
+		})
+	return transforms
+
+
+func _hand_layout_width(count: int) -> float:
+	return HAND_CARD_WIDTH + HAND_MARGIN * 2.0 + maxf(0.0, count - 1) * HAND_ADVANCE
+
+
 func _render_hand(cards: Array) -> void:
 	for child in %PlayerHand.get_children():
 		%PlayerHand.remove_child(child)
+	var visible_cards: Array = []
 	for card_data in cards:
 		if not (card_data is Dictionary): continue
 		var card = _resolve_card_view(card_data, "hand")
@@ -342,6 +399,14 @@ func _render_hand(cards: Array) -> void:
 		%PlayerHand.add_child(card)
 		card.bind(card_data, "hand")
 		card.disabled = _input_locked
+		visible_cards.append(card)
+	var transforms := _hand_layout(visible_cards.size())
+	for index in range(visible_cards.size()):
+		var card: Control = visible_cards[index]
+		card.pivot_offset = Vector2(HAND_CARD_WIDTH, HAND_CARD_HEIGHT) * 0.5
+		card.position = Vector2(transforms[index].pos.x + HAND_MARGIN, transforms[index].pos.y)
+		card.rotation_degrees = transforms[index].rot
+	%PlayerHand.custom_minimum_size = Vector2(_hand_layout_width(visible_cards.size()), 182.0)
 	_apply_hand_states()
 
 func _resolve_card_view(card_data: Dictionary, mode: String):
@@ -479,8 +544,8 @@ func _refresh_highlights() -> void:
 	%OpponentSupport.set_highlights([], targets)
 	%Frontline.set_highlights(model.highlighted_slots("frontline"), targets)
 	%PlayerSupport.set_highlights(model.highlighted_slots("support"), targets)
-	%OpponentHQ.modulate = Color("f2d66d") if str(%OpponentHQ.card_data.get("instance_id", "")) in targets else Color("e8b9b9")
-	%PlayerHQ.modulate = Color("f2d66d") if str(%PlayerHQ.card_data.get("instance_id", "")) in targets else Color("b9d8e8")
+	%OpponentHQ.set_highlight(str(%OpponentHQ.card_data.get("instance_id", "")) in targets)
+	%PlayerHQ.set_highlight(str(%PlayerHQ.card_data.get("instance_id", "")) in targets)
 	%ConfirmButton.disabled = _input_locked or not model.can_confirm()
 	%CancelButton.disabled = _input_locked or model.selected_source_id.is_empty()
 	_apply_hand_states()

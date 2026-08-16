@@ -1,6 +1,10 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/card_view.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://game_assets/ui/card_back.png" id="2_card_back"]
+[ext_resource type="Texture2D" path="res://game_assets/ui/badge_cost.png" id="3_badge_cost"]
+[ext_resource type="Texture2D" path="res://game_assets/ui/badge_attack.png" id="4_badge_attack"]
+[ext_resource type="Texture2D" path="res://game_assets/ui/badge_defense.png" id="5_badge_defense"]
 
 [sub_resource type="StyleBoxFlat" id="StyleCard"]
 bg_color = Color(0.105882, 0.137255, 0.117647, 1)
@@ -9,18 +13,43 @@ border_width_top = 2
 border_width_right = 2
 border_width_bottom = 2
 border_color = Color(0.65098, 0.552941, 0.286275, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleFrameInner"]
+bg_color = Color(0.0862745, 0.109804, 0.0941176, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.239216, 0.219608, 0.152941, 1)
 corner_radius_top_left = 4
 corner_radius_top_right = 4
 corner_radius_bottom_right = 4
 corner_radius_bottom_left = 4
 
-[sub_resource type="StyleBoxFlat" id="StyleFrame"]
-bg_color = Color(0.141176, 0.180392, 0.152941, 1)
+[sub_resource type="StyleBoxFlat" id="StyleTitleBanner"]
+bg_color = Color(0.0627451, 0.0823529, 0.0705882, 0.88)
+border_width_bottom = 1
+border_color = Color(0.360784, 0.317647, 0.196078, 0.6)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[sub_resource type="StyleBoxFlat" id="StyleArtTrim"]
+bg_color = Color(0, 0, 0, 0)
 border_width_left = 1
 border_width_top = 1
 border_width_right = 1
 border_width_bottom = 1
-border_color = Color(0.403922, 0.376471, 0.25098, 1)
+border_color = Color(0.360784, 0.317647, 0.196078, 0.55)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
 
 [sub_resource type="StyleBoxFlat" id="StyleBack"]
 bg_color = Color(0.0901961, 0.121569, 0.105882, 1)
@@ -29,10 +58,10 @@ border_width_top = 5
 border_width_right = 5
 border_width_bottom = 5
 border_color = Color(0.65098, 0.552941, 0.286275, 1)
-corner_radius_top_left = 4
-corner_radius_top_right = 4
-corner_radius_bottom_right = 4
-corner_radius_bottom_left = 4
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
 
 [node name="CardView" type="Button"]
 custom_minimum_size = Vector2(180, 252)
@@ -56,24 +85,32 @@ grow_vertical = 2
 mouse_filter = 2
 theme_override_styles/panel = SubResource("StyleBack")
 
+[node name="BackTexture" type="TextureRect" parent="CardBack"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 6.0
+offset_top = 6.0
+offset_right = -6.0
+offset_bottom = -6.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 6
+texture = ExtResource("2_card_back")
+
 [node name="Mark" type="Label" parent="CardBack"]
+visible = false
 layout_mode = 1
 anchors_preset = 8
 anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -24.0
-offset_top = -20.0
-offset_right = 24.0
-offset_bottom = 20.0
-grow_horizontal = 2
-grow_vertical = 2
-theme_override_colors/font_color = Color(0.65098, 0.552941, 0.286275, 1)
-theme_override_font_sizes/font_size = 28
-text = "OC"
-horizontal_alignment = 1
-vertical_alignment = 1
+mouse_filter = 2
+text = ""
 
 [node name="Frame" type="Panel" parent="."]
 layout_mode = 1
@@ -87,7 +124,20 @@ offset_bottom = -4.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-theme_override_styles/panel = SubResource("StyleFrame")
+
+[node name="FrameInner" type="Panel" parent="Frame"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 2.0
+offset_top = 2.0
+offset_right = -2.0
+offset_bottom = -2.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleFrameInner")
 
 [node name="CategoryStrip" type="ColorRect" parent="Frame"]
 layout_mode = 0
@@ -96,17 +146,23 @@ offset_bottom = 244.0
 mouse_filter = 2
 color = Color(0.509804, 0.576471, 0.435294, 1)
 
-[node name="Artwork" type="TextureRect" parent="Frame"]
-layout_mode = 1
-anchors_preset = 10
-anchor_right = 1.0
-offset_left = 5.0
-offset_top = 28.0
-offset_right = -5.0
-offset_bottom = 114.0
-grow_horizontal = 2
-expand_mode = 1
-stretch_mode = 6
+[node name="RarityPip" type="ColorRect" parent="Frame"]
+layout_mode = 0
+offset_left = 156.0
+offset_top = 4.0
+offset_right = 168.0
+offset_bottom = 10.0
+mouse_filter = 2
+color = Color(0.7, 0.62, 0.4, 1)
+
+[node name="TitleBanner" type="Panel" parent="Frame"]
+layout_mode = 0
+offset_left = 2.0
+offset_top = 2.0
+offset_right = 170.0
+offset_bottom = 26.0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleTitleBanner")
 
 [node name="Title" type="Label" parent="Frame"]
 layout_mode = 1
@@ -118,6 +174,7 @@ offset_right = -28.0
 offset_bottom = 27.0
 grow_horizontal = 2
 theme_override_font_sizes/font_size = 13
+theme_override_colors/font_color = Color(0.909804, 0.882353, 0.819608, 1)
 autowrap_mode = 2
 text_overrun_behavior = 2
 
@@ -131,7 +188,29 @@ offset_top = 3.0
 offset_right = -5.0
 offset_bottom = 27.0
 grow_horizontal = 0
+theme_override_colors/font_color = Color(0.721569, 0.74902, 0.709804, 1)
 horizontal_alignment = 1
+
+[node name="Artwork" type="TextureRect" parent="Frame"]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 5.0
+offset_top = 28.0
+offset_right = -5.0
+offset_bottom = 114.0
+grow_horizontal = 2
+expand_mode = 1
+stretch_mode = 6
+
+[node name="ArtworkTrim" type="Panel" parent="Frame"]
+layout_mode = 0
+offset_left = 5.0
+offset_top = 28.0
+offset_right = 167.0
+offset_bottom = 114.0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleArtTrim")
 
 [node name="Costs" type="HBoxContainer" parent="Frame"]
 layout_mode = 1
@@ -146,16 +225,49 @@ grow_horizontal = 0
 theme_override_constants/separation = 4
 
 [node name="Deployment" type="Label" parent="Frame/Costs"]
-custom_minimum_size = Vector2(19, 19)
+custom_minimum_size = Vector2(20, 20)
 layout_mode = 2
-theme_override_colors/font_color = Color(0.941176, 0.807843, 0.372549, 1)
+theme_override_colors/font_color = Color(0.25098, 0.207843, 0.101961, 1)
+theme_override_colors/font_outline_color = Color(0.913725, 0.784314, 0.372549, 0.85)
+theme_override_constants/outline_size = 2
 horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="BadgeCost" type="TextureRect" parent="Frame/Costs/Deployment"]
+show_behind_parent = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 5
+texture = ExtResource("3_badge_cost")
 
 [node name="Operation" type="Label" parent="Frame/Costs"]
-custom_minimum_size = Vector2(19, 19)
+custom_minimum_size = Vector2(20, 20)
 layout_mode = 2
-theme_override_colors/font_color = Color(0.505882, 0.764706, 0.721569, 1)
+theme_override_colors/font_color = Color(0.0862745, 0.172549, 0.164706, 1)
+theme_override_colors/font_outline_color = Color(0.54902, 0.831373, 0.780392, 0.85)
+theme_override_constants/outline_size = 2
 horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="BadgeOp" type="TextureRect" parent="Frame/Costs/Operation"]
+show_behind_parent = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 5
+modulate = Color(0.75, 0.92, 0.88, 1)
+texture = ExtResource("3_badge_cost")
 
 [node name="Description" type="Label" parent="Frame"]
 layout_mode = 1
@@ -168,6 +280,7 @@ offset_right = -6.0
 offset_bottom = -43.0
 grow_horizontal = 2
 grow_vertical = 2
+theme_override_colors/font_color = Color(0.772549, 0.74902, 0.662745, 1)
 theme_override_font_sizes/font_size = 10
 autowrap_mode = 2
 text_overrun_behavior = 3
@@ -203,11 +316,43 @@ theme_override_constants/separation = 8
 [node name="Attack" type="Label" parent="Frame/Stats"]
 custom_minimum_size = Vector2(24, 21)
 layout_mode = 2
-theme_override_colors/font_color = Color(0.92549, 0.392157, 0.286275, 1)
+theme_override_colors/font_color = Color(0.121569, 0.0431373, 0.027451, 1)
+theme_override_colors/font_outline_color = Color(0.952941, 0.760784, 0.639216, 0.9)
+theme_override_constants/outline_size = 2
 horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="BadgeAttack" type="TextureRect" parent="Frame/Stats/Attack"]
+show_behind_parent = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 5
+texture = ExtResource("4_badge_attack")
 
 [node name="Defense" type="Label" parent="Frame/Stats"]
 custom_minimum_size = Vector2(24, 21)
 layout_mode = 2
-theme_override_colors/font_color = Color(0.560784, 0.74902, 0.827451, 1)
+theme_override_colors/font_color = Color(0.0470588, 0.0980392, 0.133333, 1)
+theme_override_colors/font_outline_color = Color(0.717647, 0.858824, 0.933333, 0.9)
+theme_override_constants/outline_size = 2
 horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="BadgeDefense" type="TextureRect" parent="Frame/Stats/Defense"]
+show_behind_parent = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 5
+texture = ExtResource("5_badge_defense")
