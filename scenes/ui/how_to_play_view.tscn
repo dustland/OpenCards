@@ -1,0 +1,152 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/how_to_play_view.gd" id="1"]
+
+[sub_resource type="StyleBoxFlat" id="Panel"]
+bg_color = Color(0.094, 0.125, 0.106, 0.97)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.722, 0.604, 0.357, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+content_margin_left = 28
+content_margin_top = 22
+content_margin_right = 28
+content_margin_bottom = 22
+
+[node name="HowToPlayView" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+script = ExtResource("1")
+z_index = 20
+
+[node name="Dim" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.03, 0.04, 0.035, 0.72)
+
+[node name="Center" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Panel" type="PanelContainer" parent="Center"]
+custom_minimum_size = Vector2(560, 0)
+layout_mode = 2
+theme_override_styles/panel = SubResource("Panel")
+
+[node name="Column" type="VBoxContainer" parent="Center/Panel"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="TitleLabel" type="Label" parent="Center/Panel/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.91, 0.82, 0.55, 1)
+theme_override_font_sizes/font_size = 26
+text = "怎么玩"
+horizontal_alignment = 1
+
+[node name="Steps" type="VBoxContainer" parent="Center/Panel/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Step1" type="VBoxContainer" parent="Center/Panel/Column/Steps"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="Heading" type="Label" parent="Center/Panel/Column/Steps/Step1"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.91, 0.82, 0.55, 1)
+theme_override_font_sizes/font_size = 16
+text = "1  目标"
+
+[node name="Body" type="Label" parent="Center/Panel/Column/Steps/Step1"]
+layout_mode = 2
+autowrap_mode = 3
+text = "把敌方 HQ 的防御打到 0。双方开局都是 20 点。"
+
+[node name="Step2" type="VBoxContainer" parent="Center/Panel/Column/Steps"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="Heading" type="Label" parent="Center/Panel/Column/Steps/Step2"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.91, 0.82, 0.55, 1)
+theme_override_font_sizes/font_size = 16
+text = "2  信用点"
+
+[node name="Body" type="Label" parent="Center/Panel/Column/Steps/Step2"]
+layout_mode = 2
+autowrap_mode = 3
+text = "每回合上限 +1。打出卡牌、移动和攻击都要花信用。"
+
+[node name="Step3" type="VBoxContainer" parent="Center/Panel/Column/Steps"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="Heading" type="Label" parent="Center/Panel/Column/Steps/Step3"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.91, 0.82, 0.55, 1)
+theme_override_font_sizes/font_size = 16
+text = "3  部署"
+
+[node name="Body" type="Label" parent="Center/Panel/Column/Steps/Step3"]
+layout_mode = 2
+autowrap_mode = 3
+text = "点金框手牌，再点你的支援线空位。没有额外目标时会立刻放下。"
+
+[node name="Step4" type="VBoxContainer" parent="Center/Panel/Column/Steps"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="Heading" type="Label" parent="Center/Panel/Column/Steps/Step4"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.91, 0.82, 0.55, 1)
+theme_override_font_sizes/font_size = 16
+text = "4  前线"
+
+[node name="Body" type="Label" parent="Center/Panel/Column/Steps/Step4"]
+layout_mode = 2
+autowrap_mode = 3
+text = "单位先到前线才能推进。步兵和坦克只能从前线打对方支援线或 HQ。"
+
+[node name="Step5" type="VBoxContainer" parent="Center/Panel/Column/Steps"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="Heading" type="Label" parent="Center/Panel/Column/Steps/Step5"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.91, 0.82, 0.55, 1)
+theme_override_font_sizes/font_size = 16
+text = "5  攻击与回合"
+
+[node name="Body" type="Label" parent="Center/Panel/Column/Steps/Step5"]
+layout_mode = 2
+autowrap_mode = 3
+text = "选单位，再点高亮目标。没有可做的事时按 E 结束回合。"
+
+[node name="CloseButton" type="Button" parent="Center/Panel/Column"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(160, 40)
+layout_mode = 2
+size_flags_horizontal = 4
+text = "知道了"

@@ -8,7 +8,7 @@ const MatchController = preload("res://scripts/core/match_controller.gd")
 const CAPTURE_DIR := "res://builds/qa"
 const CAPTURE_SEED := 90210
 const CAPTURES := [
-	["deck_builder", Vector2i(1280, 720), "deck-builder.png"],
+	["title", Vector2i(1280, 720), "title.png"],
 	["mulligan", Vector2i(1280, 720), "mulligan.png"],
 	["match", Vector2i(1280, 720), "match-1280.png"],
 	["match", Vector2i(1024, 720), "match-1024.png"],
@@ -35,7 +35,15 @@ func _run() -> void:
 	await _frames(3)
 
 	await _capture_current_screen(app, CAPTURES[0])
-	var player_deck: Dictionary = app.current_screen.selected_deck()
+	app.show_how_to_play()
+	await _frames(2)
+	_check(app.get_node_or_null("HowToPlayView") != null, "how-to-play overlay is visible")
+	await _capture_image(app, Vector2i(1280, 720), "how-to-play.png", ["title", "how_to_play"])
+	var overlay = app.get_node_or_null("HowToPlayView")
+	if overlay != null:
+		overlay._on_close()
+	await _frames(1)
+	var player_deck: Dictionary = app.catalog.decks_by_id["us-starter"].duplicate(true)
 	_check(str(player_deck.get("id", "")) == "us-starter", "uses the fixed us-starter deck")
 	app.start_mulligan(player_deck, "easy", CAPTURE_SEED)
 	await _frames(2)
@@ -120,14 +128,15 @@ func _run() -> void:
 
 
 func _capture_current_screen(app, capture: Array) -> void:
-	var screen_name := str(capture[0])
-	var viewport_size: Vector2i = capture[1]
-	var filename := str(capture[2])
+	await _capture_image(app, capture[1], str(capture[2]), [str(capture[0])])
+
+
+func _capture_image(app, viewport_size: Vector2i, filename: String, allowed_screens: Array) -> void:
 	root.content_scale_size = Vector2i.ZERO
 	root.size = viewport_size
 	await _frames(2)
 	_check(app.current_screen != null, "%s has a current screen" % filename)
-	_check(_screen_name(app.current_screen) == screen_name, "%s renders %s" % [filename, screen_name])
+	_check(_screen_name(app.current_screen) in allowed_screens, "%s renders %s" % [filename, allowed_screens])
 	var image := root.get_texture().get_image()
 	_check(image != null and not image.is_empty(), "%s viewport image is available" % filename)
 	if image == null or image.is_empty():
@@ -206,7 +215,7 @@ func _check_artwork_regions(screen: Control, image: Image, filename: String) -> 
 		if region.has_area():
 			onscreen += 1
 			_check(_has_pixel_variation(image.get_region(region)), "%s artwork region is nonblank" % filename)
-	if filename != "result.png":
+	if filename not in ["result.png", "title.png", "how-to-play.png"]:
 		_check(checked > 0, "%s checks at least one visible artwork region" % filename)
 		_check(onscreen > 0, "%s checks at least one on-screen artwork region" % filename)
 
@@ -219,7 +228,7 @@ func _check_match_coach_bounds(screen: Control, viewport_size: Vector2i, filenam
 	var viewport_rect := Rect2(Vector2.ZERO, viewport_size)
 	_check(viewport_rect.encloses(coach.get_global_rect()), "%s coach stays inside viewport" % filename)
 	_check(coach.get_global_rect().end.y <= hand.get_global_rect().position.y, "%s coach does not overlap hand" % filename)
-	_check(coach.size.y == 30.0, "%s coach keeps fixed height" % filename)
+	_check(coach.size.y == 36.0, "%s coach keeps fixed height" % filename)
 
 
 func _frames(count: int) -> void:

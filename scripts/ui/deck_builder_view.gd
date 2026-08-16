@@ -2,11 +2,13 @@ class_name DeckBuilderView
 extends Control
 
 signal play_requested(deck_id: String, difficulty: String)
+signal home_requested
 
 const DeckValidator = preload("res://scripts/core/deck_validator.gd")
 const DeckStore = preload("res://scripts/ui/deck_store.gd")
 const OnboardingStore = preload("res://scripts/ui/onboarding_store.gd")
 const CardViewScene = preload("res://scenes/ui/card_view.tscn")
+const LocaleScript = preload("res://scripts/ui/locale.gd")
 
 
 class DeckBuilderViewModel:
@@ -170,6 +172,7 @@ func initialize(main, payload: Dictionary) -> void:
 	difficulty = str(payload.get("difficulty", "standard"))
 	_populate_controls()
 	_apply_onboarding_hint(onboarding_store.load())
+	_bind_chrome()
 	_refresh()
 	if not store.last_error.is_empty():
 		%Validation.text = store.last_error
@@ -259,10 +262,10 @@ func _readiness_status(validation: Dictionary) -> String:
 		var errors: Array = validation.get("errors", [])
 		if errors.is_empty():
 			return "Deck invalid - pick a starter from the Deck menu to start."
-		return "%s - edit the deck or pick a starter from the Deck menu." % str(errors[0]).replace("_", " ").capitalize()
+		return str(errors[0]).replace("_", " ").capitalize()
 	if not model.selected_deck_id.begins_with("user-") and model.card_count() == 40:
-		return "Starter deck ready - 40 valid cards. Press Start Battle."
-	return "Deck ready - %d valid cards. Press Start Battle." % model.card_count()
+		return LocaleScript.ui("builder.starter_ready")
+	return "Deck ready - %d valid cards." % model.card_count()
 
 
 func _apply_onboarding_hint(state: Dictionary) -> void:
@@ -324,6 +327,19 @@ func _on_save_pressed() -> void:
 		%Validation.text = "Saved"
 	else:
 		%Validation.text = store.last_error
+
+
+func _bind_chrome() -> void:
+	if has_node("%HomeButton"):
+		%HomeButton.text = LocaleScript.ui("builder.home")
+	if has_node("%PlayButton"):
+		%PlayButton.text = LocaleScript.ui("builder.play")
+	if has_node("%StarterHint"):
+		%StarterHint.text = LocaleScript.ui("builder.hint")
+
+
+func _on_home_pressed() -> void:
+	home_requested.emit()
 
 
 func _on_play_pressed() -> void:

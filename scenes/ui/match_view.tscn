@@ -217,7 +217,7 @@ text_overrun_behavior = 3
 
 [node name="CoachObjective" type="Label" parent="Margin/Columns/Board"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 30)
+custom_minimum_size = Vector2(0, 36)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.945, 0.855, 0.55, 1)
 theme_override_font_sizes/font_size = 15

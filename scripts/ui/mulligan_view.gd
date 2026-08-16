@@ -3,6 +3,7 @@ extends Control
 
 signal confirm_requested(selected_instance_ids: Array[String])
 
+const LocaleScript = preload("res://scripts/ui/locale.gd")
 const CardViewScene = preload("res://scenes/ui/card_view.tscn")
 
 var _hand_ids: Array[String] = []
@@ -27,6 +28,10 @@ func initialize(_main, payload: Dictionary) -> void:
 	%ConfirmButton.disabled = false
 	%StatusLabel.text = ""
 	%DifficultyLabel.text = str(payload.get("difficulty", "standard")).to_upper()
+	if has_node("%HelpLabel"):
+		%HelpLabel.text = LocaleScript.ui("mulligan.help")
+	if has_node("%ConfirmButton"):
+		%ConfirmButton.text = LocaleScript.ui("mulligan.confirm")
 	_clear_hand()
 	for card_value in hand:
 		var card: Dictionary = card_value
@@ -83,7 +88,7 @@ func render_result(snapshot: Dictionary, events: Array) -> void:
 		view.disabled = true
 		%HandRow.add_child(view)
 		view.bind(card_value, "hand")
-	%StatusLabel.text = "Opening hand ready - %d cards replaced" % _replacement_count(events)
+	%StatusLabel.text = LocaleScript.ui("mulligan.ready") % _replacement_count(events)
 
 
 func has_rendered_result() -> bool:

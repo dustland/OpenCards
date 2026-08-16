@@ -1,7 +1,7 @@
 class_name OnboardingStore
 extends RefCounted
 
-const MILESTONES := ["deployed_unit", "moved_to_frontline", "completed_attack"]
+const MILESTONES := ["deployed_unit", "moved_to_frontline", "completed_attack", "how_to_play_seen"]
 
 var _path: String
 var _state: Dictionary = {}
@@ -17,6 +17,7 @@ func _init(path: String = "user://onboarding.json") -> void:
 static func defaults() -> Dictionary:
 	return {
 		"deck_hint_dismissed": false,
+		"how_to_play_seen": false,
 		"deployed_unit": false,
 		"moved_to_frontline": false,
 		"completed_attack": false,

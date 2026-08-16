@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-10
 **Status:** Approved design, pending implementation plan
-**Target:** https://opencards.dustland.ai
+**Target:** https://opencards.lyu.ai
 
 ## Goal
 
@@ -69,7 +69,7 @@ Name:  opencards
 Value: lyuai.github.io
 ```
 
-The repository administrator must configure `opencards.dustland.ai` under **Settings > Pages > Custom domain**. With an Actions-based Pages source, the custom domain is repository configuration; a generated `CNAME` file is not required and GitHub documents that existing `CNAME` files are ignored for custom workflows.
+The repository administrator must configure `opencards.lyu.ai` under **Settings > Pages > Custom domain**. With an Actions-based Pages source, the custom domain is repository configuration; a generated `CNAME` file is not required and GitHub documents that existing `CNAME` files are ignored for custom workflows.
 
 The domain should be verified for the `lyuai` GitHub organization before DNS is switched to reduce takeover risk. After DNS propagation and certificate issuance, **Enforce HTTPS** must be enabled. DNS propagation and certificate issuance are external states and may take time.
 
@@ -95,7 +95,7 @@ Local and CI verification will include:
 - a local static HTTP server smoke test;
 - Playwright loading the exported page at desktop and mobile viewports;
 - checks that the Godot canvas is nonblank, the page has no fatal console errors, and a basic menu-to-match interaction works;
-- after deployment, an HTTPS smoke request to `https://opencards.dustland.ai`.
+- after deployment, an HTTPS smoke request to `https://opencards.lyu.ai`.
 
 The custom-domain smoke check may be reported as pending until DNS and GitHub Pages settings are active; this does not weaken local export or artifact validation.
 

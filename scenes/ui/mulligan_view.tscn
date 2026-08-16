@@ -50,6 +50,14 @@ theme_override_font_sizes/font_size = 24
 text = "Opening Hand"
 vertical_alignment = 1
 
+[node name="HelpLabel" type="Label" parent="Margin/Page"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.79, 0.73, 0.51, 1)
+theme_override_font_sizes/font_size = 14
+autowrap_mode = 3
+text = "点不要的牌替换。先手 4 张、后手 5 张；换掉的牌回库后再抽。"
+
 [node name="DifficultyLabel" type="Label" parent="Margin/Page/Header"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(112, 36)

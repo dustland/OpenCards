@@ -9,9 +9,11 @@ const GameActionScript = preload("res://scripts/core/game_action.gd")
 const MatchControllerScript = preload("res://scripts/core/match_controller.gd")
 const AIPlayerScript = preload("res://scripts/ai/ai_player.gd")
 const OnboardingStoreScript = preload("res://scripts/ui/onboarding_store.gd")
+const HowToPlayScene = preload("res://scenes/ui/how_to_play_view.tscn")
 
-const VALID_SCREENS := ["deck_builder", "mulligan", "match", "result"]
+const VALID_SCREENS := ["title", "deck_builder", "mulligan", "match", "result"]
 const SCREEN_PATHS := {
+	"title": "res://scenes/ui/title_view.tscn",
 	"deck_builder": "res://scenes/ui/deck_builder_view.tscn",
 	"mulligan": "res://scenes/ui/mulligan_view.tscn",
 	"match": "res://scenes/ui/match_view.tscn",
@@ -72,19 +74,63 @@ func show_screen(screen_name: String, payload: Dictionary = {}) -> void:
 		current_screen.initialize(self, payload)
 	if screen_name == "match" and current_screen.has_method("set_animation_mode"):
 		current_screen.set_animation_mode(animation_mode)
-	if screen_name == "deck_builder" and current_screen.has_signal("play_requested"):
-		current_screen.play_requested.connect(_on_play_requested)
+	if screen_name == "title":
+		if current_screen.has_signal("start_requested"):
+			current_screen.start_requested.connect(_on_title_start)
+		if current_screen.has_signal("how_to_play_requested"):
+			current_screen.how_to_play_requested.connect(show_how_to_play)
+		if current_screen.has_signal("deck_editor_requested"):
+			current_screen.deck_editor_requested.connect(_on_deck_builder_requested)
+	if screen_name == "deck_builder":
+		if current_screen.has_signal("play_requested"):
+			current_screen.play_requested.connect(_on_play_requested)
+		if current_screen.has_signal("home_requested"):
+			current_screen.home_requested.connect(_on_home_requested)
 	if screen_name == "mulligan" and current_screen.has_signal("confirm_requested"):
 		current_screen.confirm_requested.connect(_on_mulligan_confirmed)
 	if screen_name == "match" and current_screen.has_signal("action_requested"):
 		current_screen.action_requested.connect(submit_player_action)
+		if current_screen.has_signal("how_to_play_requested"):
+			current_screen.how_to_play_requested.connect(show_how_to_play)
 		_refresh_match_view()
 		call_deferred("start_match_turn_flow")
+		if bool(payload.get("auto_how_to_play", false)) and not bool(onboarding_store.load().get("how_to_play_seen", false)):
+			call_deferred("show_how_to_play")
 	if screen_name == "result":
 		if current_screen.has_signal("rematch_requested"):
 			current_screen.rematch_requested.connect(_on_rematch_requested)
 		if current_screen.has_signal("deck_builder_requested"):
-			current_screen.deck_builder_requested.connect(_on_deck_builder_requested)
+			current_screen.deck_builder_requested.connect(_on_home_requested)
+		if current_screen.has_signal("home_requested"):
+			current_screen.home_requested.connect(_on_home_requested)
+
+
+func _on_title_start() -> void:
+	_start_selected_match()
+
+
+func _start_selected_match() -> void:
+	var deck := selected_player_deck.duplicate(true)
+	if deck.is_empty() and catalog != null and catalog.decks_by_id.has(selected_deck_id):
+		deck = (catalog.decks_by_id[selected_deck_id] as Dictionary).duplicate(true)
+	if deck.is_empty() and catalog != null and catalog.decks_by_id.has("us-starter"):
+		deck = (catalog.decks_by_id["us-starter"] as Dictionary).duplicate(true)
+		selected_deck_id = "us-starter"
+	start_mulligan(deck, difficulty)
+
+
+func show_how_to_play() -> void:
+	if get_node_or_null("HowToPlayView") != null:
+		return
+	var overlay = HowToPlayScene.instantiate()
+	overlay.name = "HowToPlayView"
+	add_child(overlay)
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.closed.connect(_on_how_to_play_closed)
+
+
+func _on_how_to_play_closed() -> void:
+	onboarding_store.complete("how_to_play_seen")
 
 
 func _on_play_requested(deck_id: String, selected_difficulty: String) -> void:
@@ -196,6 +242,7 @@ func _on_mulligan_confirmed(selected_ids: Array[String]) -> void:
 		"difficulty": difficulty,
 		"events": rendered_events,
 		"snapshot": controller.state.snapshot_for("player"),
+		"auto_how_to_play": true,
 	})
 
 
@@ -420,6 +467,13 @@ func _next_match_seed() -> int:
 	return next_seed
 
 
+func _on_home_requested() -> void:
+	controller = null
+	ai = null
+	_terminal_events.clear()
+	show_screen("title", {"deck_id": selected_deck_id, "difficulty": difficulty})
+
+
 func _on_deck_builder_requested() -> void:
 	var player_deck := selected_player_deck.duplicate(true)
 	controller = null
@@ -451,7 +505,7 @@ func _validate_and_start() -> void:
 	if not diagnostics.is_empty():
 		_show_content_errors(diagnostics)
 		return
-	show_screen("deck_builder", {"catalog": catalog, "deck_id": selected_deck_id, "difficulty": difficulty})
+	show_screen("title", {"catalog": catalog, "deck_id": selected_deck_id, "difficulty": difficulty})
 
 
 func _show_content_errors(diagnostics: Array[Dictionary]) -> void:
