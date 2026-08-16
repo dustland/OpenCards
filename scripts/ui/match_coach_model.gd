@@ -1,6 +1,8 @@
 class_name MatchCoachModel
 extends RefCounted
 
+const LocaleScript = preload("res://scripts/ui/locale.gd")
+
 const ACTION_PRIORITY := [
 	"deploy_unit",
 	"move_unit",
@@ -17,7 +19,7 @@ static func derive(snapshot: Dictionary, legal_actions: Array, selection: Dictio
 	var legal_source_ids: Array = actions_by_source.keys()
 	legal_source_ids.sort()
 	var result := {
-		"objective": "No legal action is available.",
+		"objective": LocaleScript.ui("coach.none"),
 		"legal_source_ids": legal_source_ids,
 		"source_reasons": _source_reasons(snapshot, actions_by_source),
 		"end_turn_only": legal_actions.size() == 1 and _action_type(legal_actions[0]) == "end_turn",
@@ -25,7 +27,7 @@ static func derive(snapshot: Dictionary, legal_actions: Array, selection: Dictio
 	}
 
 	if str(snapshot.get("active_player_id", "")) != "player":
-		result.objective = "Opponent is acting."
+		result.objective = LocaleScript.ui("coach.opponent")
 		result.next_kind = "opponent_turn"
 		return result
 
@@ -34,43 +36,43 @@ static func derive(snapshot: Dictionary, legal_actions: Array, selection: Dictio
 		var selected_actions: Array = actions_by_source[selected_source_id]
 		var selected_type := _highest_priority_type(selected_actions)
 		if selected_type == "deploy_unit" and int(selection.get("selected_slot", -1)) < 0:
-			result.objective = "Choose a highlighted Support Line slot."
+			result.objective = LocaleScript.ui("coach.support_slot")
 			result.next_kind = "support_slot"
 			return result
 		if selected_type == "move_unit" and int(selection.get("selected_slot", -1)) < 0:
-			result.objective = "Choose a highlighted Frontline slot."
+			result.objective = LocaleScript.ui("coach.frontline_slot")
 			result.next_kind = "frontline_slot"
 			return result
 		if selected_type in ["attack_unit", "attack_hq", "play_order", "activate_ability"] \
 				and _selection_needs_target(selected_actions, selection.get("selected_targets", [])):
-			result.objective = "Choose a highlighted target."
+			result.objective = LocaleScript.ui("coach.target")
 			result.next_kind = "target"
 			return result
 
-	var next_type := _objective_priority_type(legal_actions, onboarding)
+	var next_type := _objective_priority_type(legal_actions, onboarding, snapshot)
 	match next_type:
 		"deploy_unit":
 			var credit := int(_player(snapshot).get("credit", 0))
-			result.objective = "Select a highlighted card to deploy. You have %d Credit." % credit
+			result.objective = LocaleScript.ui("coach.deploy") % credit
 			result.next_kind = "deploy"
 		"move_unit":
-			result.objective = "Select a ready unit, then choose a highlighted Frontline slot."
+			result.objective = LocaleScript.ui("coach.move")
 			result.next_kind = "move"
 		"attack_unit", "attack_hq":
-			result.objective = "Select a ready unit, then choose a highlighted target."
+			result.objective = LocaleScript.ui("coach.attack")
 			result.next_kind = "attack"
 		"play_order":
-			result.objective = "Select a highlighted Order card to play."
+			result.objective = LocaleScript.ui("coach.order")
 			result.next_kind = "order"
 		"toggle_countermeasure":
-			result.objective = "Select a highlighted Countermeasure card to activate or deactivate."
+			result.objective = LocaleScript.ui("coach.countermeasure")
 			result.next_kind = "countermeasure"
 		"activate_ability":
-			result.objective = "Select a ready unit to use an ability."
+			result.objective = LocaleScript.ui("coach.ability")
 			result.next_kind = "ability"
 		"end_turn":
 			if result.end_turn_only:
-				result.objective = "No other actions are available. End the turn to gain another Credit slot."
+				result.objective = LocaleScript.ui("coach.end_turn")
 				result.next_kind = "end_turn"
 	return result
 
@@ -102,19 +104,19 @@ static func _source_reasons(snapshot: Dictionary, actions_by_source: Dictionary)
 		if source_id.is_empty() or actions_by_source.has(source_id):
 			continue
 		if not is_player_turn:
-			reasons[source_id] = "Wait for your turn"
+			reasons[source_id] = LocaleScript.ui("reason.wait")
 			continue
 		var category := str(card.get("category", ""))
 		if category == "Countermeasure" and bool(card.get("countermeasure_active", false)):
-			reasons[source_id] = "Already active"
+			reasons[source_id] = LocaleScript.ui("reason.active")
 		elif category in ["Unit", "Order", "Countermeasure"] and int(card.get("deployment_cost", 0)) > int(player.get("credit", 0)):
-			reasons[source_id] = "Not enough Credit"
+			reasons[source_id] = LocaleScript.ui("reason.credit")
 		elif category == "Unit" and _support_is_full(player.get("support_line", [])):
-			reasons[source_id] = "Support Line is full"
+			reasons[source_id] = LocaleScript.ui("reason.support_full")
 		elif category == "Order":
-			reasons[source_id] = "No legal target"
+			reasons[source_id] = LocaleScript.ui("reason.no_target")
 		else:
-			reasons[source_id] = "No legal action for this card"
+			reasons[source_id] = LocaleScript.ui("reason.none")
 	return reasons
 
 
@@ -163,7 +165,7 @@ static func _highest_priority_type(actions: Array) -> String:
 	return ""
 
 
-static func _objective_priority_type(actions: Array, onboarding: Dictionary) -> String:
+static func _objective_priority_type(actions: Array, onboarding: Dictionary, snapshot: Dictionary = {}) -> String:
 	var teaching_actions := actions.filter(func(action: Variant) -> bool:
 		match _action_type(action):
 			"deploy_unit":
@@ -175,7 +177,19 @@ static func _objective_priority_type(actions: Array, onboarding: Dictionary) -> 
 		return false
 	)
 	var teaching_type := _highest_priority_type(teaching_actions)
-	return teaching_type if not teaching_type.is_empty() else _highest_priority_type(actions)
+	var chosen := teaching_type if not teaching_type.is_empty() else _highest_priority_type(actions)
+	if chosen == "deploy_unit" and str(snapshot.get("frontline_controller_id", "")) == "opponent" and _has_attack(actions):
+		return _highest_priority_type(actions.filter(func(action: Variant) -> bool:
+			return _action_type(action) in ["attack_unit", "attack_hq", "end_turn"]
+		))
+	return chosen
+
+
+static func _has_attack(actions: Array) -> bool:
+	for action in actions:
+		if _action_type(action) in ["attack_unit", "attack_hq"]:
+			return true
+	return false
 
 
 static func _action_type(action: Variant) -> String:

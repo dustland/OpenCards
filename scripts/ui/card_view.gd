@@ -5,6 +5,8 @@ signal card_pressed(instance_id: String)
 signal card_drag_started(instance_id: String)
 signal card_dropped(instance_id: String, target: Variant)
 
+const LocaleScript = preload("res://scripts/ui/locale.gd")
+
 const MODE_SIZES := {
 	"catalog": Vector2(180, 252),
 	"hand": Vector2(116, 162),
@@ -26,6 +28,7 @@ var _base_tooltip := ""
 var _hover_active := false
 var _rest_position := Vector2.ZERO
 var _hover_tween: Tween
+var _legal_pulse: Tween
 
 
 func _ready() -> void:
@@ -35,6 +38,7 @@ func _ready() -> void:
 func bind(data: Dictionary, display_mode: String) -> void:
 	assert(MODE_SIZES.has(display_mode), "Unsupported card display mode: %s" % display_mode)
 	_reset_hover()
+	rotation_degrees = 0.0
 	mode = display_mode
 	size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -63,6 +67,8 @@ func bind(data: Dictionary, display_mode: String) -> void:
 	get_node("Frame/Stats/Attack").text = str(data.get("attack", ""))
 	get_node("Frame/Stats/Defense").text = str(data.get("defense", ""))
 	get_node("Frame/Artwork").texture = _load_art(str(data.get("image_path", "")))
+	_base_tooltip = _inspect_text(data)
+	tooltip_text = _base_tooltip
 	_apply_semantic_accents(data)
 	set_action_state("normal")
 
@@ -70,7 +76,8 @@ func bind(data: Dictionary, display_mode: String) -> void:
 func set_action_state(state: String, reason: String = "") -> void:
 	assert(state in ["normal", "legal", "selected", "unavailable"], "Unsupported card action state: %s" % state)
 	action_state = state
-	tooltip_text = reason if not reason.is_empty() else _base_tooltip
+	tooltip_text = _base_tooltip if reason.is_empty() else "%s\n%s" % [reason, _base_tooltip]
+	_stop_legal_pulse()
 	if card_data.get("hidden", false):
 		return
 	var border := Color("a88f58")
@@ -91,6 +98,8 @@ func set_action_state(state: String, reason: String = "") -> void:
 	add_theme_stylebox_override("normal", _card_style(Color("171d1a") if state == "unavailable" else Color("1b241e"), border, 4 if glow else 2))
 	add_theme_stylebox_override("hover", _card_style(Color("202824"), border.lightened(0.12), 5 if glow else 3))
 	self_modulate = Color(0.68, 0.68, 0.68, 1.0) if state == "unavailable" else Color.WHITE
+	if state == "legal":
+		_start_legal_pulse()
 
 
 func _on_pressed() -> void:
@@ -141,7 +150,7 @@ func _reset_hover() -> void:
 func _set_hover_lift(lift: bool) -> void:
 	if lift == _hover_active:
 		return
-	if lift and (mode != "hand" or action_state == "unavailable" or not is_inside_tree()):
+	if lift and (mode != "hand" or not is_inside_tree()):
 		return
 	_hover_active = lift
 	if _hover_tween != null and _hover_tween.is_valid():
@@ -219,11 +228,16 @@ func _apply_mode_layout() -> void:
 			_set_rect(category_strip, 0, 0, 3, 244)
 			_set_rect(rarity_pip, 156, 3, 168, 9)
 		"hand":
-			type.visible = false
-			_set_rect(title, 4, 2, 104, 29)
-			_set_rect(title_banner, 2, 1, 102, 30)
-			_set_rect(artwork, 4, 32, 104, 111)
-			_set_rect(artwork_trim, 4, 32, 104, 111)
+			type.visible = true
+			keywords.visible = true
+			type.add_theme_font_size_override("font_size", 8)
+			keywords.add_theme_font_size_override("font_size", 8)
+			_set_rect(title, 4, 2, 104, 16)
+			_set_rect(type, 4, 16, 54, 28)
+			_set_rect(keywords, 56, 16, 104, 28)
+			_set_rect(title_banner, 2, 1, 102, 29)
+			_set_rect(artwork, 4, 30, 104, 112)
+			_set_rect(artwork_trim, 4, 30, 104, 112)
 			_set_rect(costs, 4, 114, 46, 133)
 			_set_rect(stats, 44, 128, 104, 149)
 			_set_rect(category_strip, 0, 0, 3, 154)
@@ -293,6 +307,10 @@ func _set_rect(control: Control, left: float, top: float, right: float, bottom: 
 	control.anchor_top = 0.0
 	control.anchor_right = 0.0
 	control.anchor_bottom = 0.0
+	control.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	control.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	control.custom_minimum_size = Vector2.ZERO
+	control.clip_contents = true
 	control.offset_left = left
 	control.offset_top = top
 	control.offset_right = right
@@ -301,7 +319,37 @@ func _set_rect(control: Control, left: float, top: float, right: float, bottom: 
 
 func _type_mark(data: Dictionary) -> String:
 	var unit_type := str(data.get("unit_type", ""))
-	return unit_type.left(1).to_upper() if not unit_type.is_empty() else str(data.get("category", "")).left(1).to_upper()
+	if mode == "hand" and not unit_type.is_empty():
+		return unit_type
+	if not unit_type.is_empty():
+		return unit_type.left(1).to_upper()
+	return str(data.get("category", "")).left(1).to_upper()
+
+
+func _inspect_text(data: Dictionary) -> String:
+	var lines: PackedStringArray = PackedStringArray([
+		str(data.get("title", "")),
+		str(data.get("unit_type", data.get("category", ""))),
+		str(data.get("description", "")),
+	])
+	for keyword in data.get("keywords", []):
+		lines.append(LocaleScript.keyword(str(keyword)))
+	return "\n".join(lines)
+
+
+func _start_legal_pulse() -> void:
+	if not is_inside_tree() or DisplayServer.get_name() == "headless":
+		return
+	_stop_legal_pulse()
+	_legal_pulse = create_tween().set_loops()
+	_legal_pulse.tween_property(self, "self_modulate", Color(1.18, 1.1, 0.72), 0.5)
+	_legal_pulse.tween_property(self, "self_modulate", Color.WHITE, 0.5)
+
+
+func _stop_legal_pulse() -> void:
+	if _legal_pulse != null and _legal_pulse.is_valid():
+		_legal_pulse.kill()
+	_legal_pulse = null
 
 
 func _load_art(path: String) -> Texture2D:

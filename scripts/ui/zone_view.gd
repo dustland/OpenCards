@@ -16,6 +16,7 @@ const CardViewScene = preload("res://scenes/ui/card_view.tscn")
 var highlighted_slots: Array = []
 var highlighted_targets: Array = []
 var input_locked := false
+var lane_caption := ""
 
 func _ready() -> void:
 	custom_minimum_size = Vector2(slot_width * grid_cell_count + slot_gap * (grid_cell_count - 1), 118.0)
@@ -28,6 +29,8 @@ func render(cards: Array, hidden := false, card_resolver: Callable = Callable())
 			add_child(retained)
 	for child in get_children():
 		if child is CardView:
+			continue
+		if not (child is _DropSlot):
 			continue
 		child.free()
 	for index in range(slot_count):
@@ -50,6 +53,7 @@ func render(cards: Array, hidden := false, card_resolver: Callable = Callable())
 			if card.get_parent() != null:
 				card.get_parent().remove_child(card)
 			slot.add_child(card)
+			card.rotation_degrees = 0.0
 			card.bind(card_data, "hidden" if hidden else "battlefield")
 			card.set_anchors_preset(Control.PRESET_TOP_LEFT)
 			card.disabled = input_locked
@@ -75,19 +79,28 @@ func _notification(what: int) -> void:
 		queue_redraw()
 
 func _draw() -> void:
+	if not lane_caption.is_empty():
+		var font := get_theme_default_font()
+		if font != null:
+			draw_string(font, Vector2(8, 14), lane_caption, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0.91, 0.88, 0.78, 0.95))
 	if slot_count >= grid_cell_count:
 		return
 	var grid_width: float = slot_width * grid_cell_count + slot_gap * (grid_cell_count - 1)
 	var left: float = floorf((size.x - grid_width) * 0.5)
 	for index in range(slot_count, grid_cell_count):
 		var rect := Rect2(left + index * (slot_width + slot_gap), 0.0, slot_width, size.y)
-		_slot_style(zone_name).draw(get_canvas_item(), rect)
+		var unused := _slot_style(zone_name)
+		unused.bg_color.a = 0.18
+		unused.border_color = Color("4a5248")
+		unused.set_border_width_all(1)
+		unused.draw(get_canvas_item(), rect)
 
 func _layout_slots() -> void:
 	var grid_width: float = slot_width * grid_cell_count + slot_gap * (grid_cell_count - 1)
 	var left: float = floorf((size.x - grid_width) * 0.5)
-	for index in range(get_child_count()):
-		var slot := get_child(index) as Control
+	var slots := _drop_slots()
+	for index in range(slots.size()):
+		var slot := slots[index] as _DropSlot
 		var cell_height := minf(118.0, size.y)
 		slot.position = Vector2(left + index * (slot_width + slot_gap), floorf((size.y - cell_height) * 0.5))
 		slot.size = Vector2(slot_width, cell_height)
@@ -95,6 +108,13 @@ func _layout_slots() -> void:
 			var card := slot.get_child(0) as Control
 			card.position = Vector2.ZERO
 			card.size = slot.size
+
+func _drop_slots() -> Array:
+	var slots: Array = []
+	for child in get_children():
+		if child is _DropSlot:
+			slots.append(child)
+	return slots
 
 func grid_column_centers() -> Array[float]:
 	var result: Array[float] = []
@@ -118,7 +138,7 @@ func _slot_style(zone: String) -> StyleBoxFlat:
 			style.bg_color = Color(0.16, 0.195, 0.215, 0.62)
 			edge = Color("6d8496")
 	style.border_color = edge
-	style.set_border_width_all(1)
+	style.set_border_width_all(2)
 	style.border_width_top = 2
 	style.border_width_bottom = 3
 	style.set_corner_radius_all(4)
@@ -126,7 +146,7 @@ func _slot_style(zone: String) -> StyleBoxFlat:
 
 func set_input_locked(locked: bool) -> void:
 	input_locked = locked
-	for slot in get_children():
+	for slot in _drop_slots():
 		slot.input_locked = locked
 		slot.disabled = locked
 		if slot.get_child_count() > 0:
@@ -138,8 +158,9 @@ func set_highlights(slots: Array, targets: Array) -> void:
 	_apply_highlights()
 
 func _apply_highlights() -> void:
-	for index in range(get_child_count()):
-		var slot := get_child(index) as _DropSlot
+	var slots := _drop_slots()
+	for index in range(slots.size()):
+		var slot: _DropSlot = slots[index]
 		var highlighted := index in highlighted_slots
 		var style := _slot_style(zone_name)
 		if highlighted:

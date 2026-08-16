@@ -90,7 +90,7 @@ static func _test_us_command_post_defeat(t, catalog) -> void:
 
 
 static func _test_us_rifle_platoon_deployment_sickness(t, catalog) -> void:
-	_assert_locked(t, catalog, "us-rifle-platoon", "Reliable infantry for holding ground.")
+	_assert_locked(t, catalog, "us-rifle-platoon", "Infantry. From Support, attack the Frontline. From the Frontline, attack Support or HQ.")
 	var controller := _controller(catalog, 702)
 	var rifle := _put_hand(controller, _card(catalog, "us-rifle-platoon", "player", "rifle"))
 	var deployed = _deploy(controller, rifle, 0)

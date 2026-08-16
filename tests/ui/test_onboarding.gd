@@ -8,6 +8,7 @@ const DeckBuilderScene = preload("res://scenes/ui/deck_builder_view.tscn")
 const MatchViewScene = preload("res://scenes/ui/match_view.tscn")
 const CardMotionDirector = preload("res://scripts/ui/card_motion_director.gd")
 const AIPlayer = preload("res://scripts/ai/ai_player.gd")
+const LocaleScript = preload("res://scripts/ui/locale.gd")
 
 class MotionProbe:
 	extends RefCounted
@@ -51,10 +52,10 @@ static func _test_deck_builder_starter_readiness(t) -> void:
 	var onboarding_path := "user://test-onboarding-deck-builder.json"
 	_cleanup(onboarding_path)
 	var view = await _create_deck_builder(onboarding_path, Vector2(1280, 720))
-	t.assert_eq(view.get_node("%StarterStatus").text, "Starter deck ready - 40 valid cards.", "shipped deck has exact readiness copy")
-	t.assert_eq(view.get_node("%StarterHint").text, "Choose a difficulty and start battle, or click cards to edit.", "starter hint uses exact explanatory copy")
+	t.assert_eq(view.get_node("%StarterStatus").text, LocaleScript.ui("builder.starter_ready"), "shipped deck has exact readiness copy")
+	t.assert_eq(view.get_node("%StarterHint").text, LocaleScript.ui("builder.hint"), "starter hint uses exact explanatory copy")
 	t.assert_true(view.get_node("%StarterHint").visible, "starter hint begins visible")
-	t.assert_eq(view.get_node("%PlayButton").text, "Start Battle", "launch command names the battle")
+	t.assert_eq(view.get_node("%PlayButton").text, LocaleScript.ui("builder.play"), "launch command names the battle")
 	var dismiss := view.get_node("%DismissHint") as Button
 	t.assert_eq(dismiss.tooltip_text, "Hide starter hint", "icon close button explains itself")
 	dismiss.pressed.emit()
@@ -66,7 +67,7 @@ static func _test_deck_builder_starter_readiness(t) -> void:
 
 	view = await _create_deck_builder(onboarding_path, Vector2(1280, 720))
 	t.assert_true(not view.get_node("%StarterHint").visible, "dismissal reloads from injected onboarding path")
-	t.assert_eq(view.get_node("%StarterStatus").text, "Starter deck ready - 40 valid cards.", "readiness remains after persisted dismissal")
+	t.assert_eq(view.get_node("%StarterStatus").text, LocaleScript.ui("builder.starter_ready"), "readiness remains after persisted dismissal")
 	view.queue_free()
 	await Engine.get_main_loop().process_frame
 	_cleanup(onboarding_path)
@@ -84,7 +85,7 @@ static func _test_deck_builder_edited_validation_and_restoration(t) -> void:
 
 	view.model.select_deck("us-starter")
 	view._refresh_deck()
-	t.assert_eq(view.get_node("%StarterStatus").text, "Starter deck ready - 40 valid cards.", "returning to shipped deck restores readiness")
+	t.assert_eq(view.get_node("%StarterStatus").text, LocaleScript.ui("builder.starter_ready"), "returning to shipped deck restores readiness")
 	t.assert_true(not view.get_node("%PlayButton").disabled, "restored shipped deck enables Start Battle")
 	view.queue_free()
 	await Engine.get_main_loop().process_frame
@@ -96,7 +97,7 @@ static func _test_deck_builder_edited_validation_and_restoration(t) -> void:
 	t.assert_true(view.get_node("%PlayButton").disabled, "removed card disables Start Battle")
 	view.model.select_deck("us-starter")
 	view._refresh_deck()
-	t.assert_eq(view.get_node("%StarterStatus").text, "Starter deck ready - 40 valid cards.", "shipped deck readiness restores after removal edit")
+	t.assert_eq(view.get_node("%StarterStatus").text, LocaleScript.ui("builder.starter_ready"), "shipped deck readiness restores after removal edit")
 	view.queue_free()
 	await Engine.get_main_loop().process_frame
 	_cleanup(onboarding_path)
@@ -144,17 +145,17 @@ static func _test_match_coach_and_card_states(t) -> void:
 	view.set_legal_actions([_action("deploy_unit", "one-cost", [], {"support_slot": 0}), _action("end_turn")])
 	view.set_onboarding_state(OnboardingStore.defaults())
 	await view.get_tree().process_frame
-	t.assert_eq(view.get_node("%CoachObjective").text, "Select a highlighted card to deploy. You have 1 Credit.", "coach renders first-turn deploy objective")
+	t.assert_eq(view.get_node("%CoachObjective").text, LocaleScript.ui("coach.deploy") % 1, "coach renders first-turn deploy objective")
 	var cards := view.get_node("%PlayerHand").get_children()
 	t.assert_eq(cards[0].action_state, "legal", "legal hand source is highlighted")
 	t.assert_eq(cards[1].action_state, "unavailable", "illegal hand source is unavailable")
-	t.assert_eq(cards[1].tooltip_text, "Not enough Credit", "unavailable source exposes concrete reason")
+	t.assert_true(cards[1].tooltip_text.begins_with(LocaleScript.ui("reason.credit")), "unavailable source exposes concrete reason")
 	view._on_card_pressed("one-cost")
 	t.assert_eq(cards[0].action_state, "selected", "selected source has selected semantics")
-	t.assert_eq(view.get_node("%CoachObjective").text, "Choose a highlighted Support Line slot.", "selection refreshes coach immediately")
+	t.assert_eq(view.get_node("%CoachObjective").text, LocaleScript.ui("coach.support_slot"), "selection refreshes coach immediately")
 	t.assert_eq(view.get_node("%StatusLabel").text, "", "precise coach copy replaces legacy selection status")
 	var objective_height := (view.get_node("%CoachObjective") as Control).size.y
-	t.assert_eq(view.get_node("%AnimationButton").text, "Animation: On", "match exposes animation preference")
+	t.assert_eq(view.get_node("%AnimationButton").text, LocaleScript.ui("match.animation_on"), "match exposes animation preference")
 	view.get_node("%AnimationButton").pressed.emit()
 	t.assert_eq(view.animation_mode, "reduced", "animation command switches to reduced mode")
 	view.show_rejection("stale_action", "That action is no longer legal.")
@@ -179,14 +180,14 @@ static func _test_rejection_refresh_ordering(t) -> void:
 	var advanced := snapshot.duplicate(true)
 	advanced.sequence = 13
 	view.render_snapshot(advanced)
-	t.assert_eq(view.get_node("%CoachObjective").text, "Select a highlighted card to deploy. You have 1 Credit.", "authoritative sequence advance clears rejection")
+	t.assert_eq(view.get_node("%CoachObjective").text, LocaleScript.ui("coach.deploy") % 1, "authoritative sequence advance clears rejection")
 	t.assert_eq(view.get_node("%StatusLabel").text, "", "authoritative sequence advance clears rejection status")
 	view.show_rejection("stale_action", "State changed")
 	view._on_card_pressed("one-cost")
-	t.assert_eq(view.get_node("%CoachObjective").text, "Choose a highlighted Support Line slot.", "selection change clears rejection")
+	t.assert_eq(view.get_node("%CoachObjective").text, LocaleScript.ui("coach.support_slot"), "selection change clears rejection")
 	view.show_rejection("stale_action", "State changed")
 	view._on_cancel_pressed()
-	t.assert_eq(view.get_node("%CoachObjective").text, "Select a highlighted card to deploy. You have 1 Credit.", "cancellation clears rejection")
+	t.assert_eq(view.get_node("%CoachObjective").text, LocaleScript.ui("coach.deploy") % 1, "cancellation clears rejection")
 	view.queue_free()
 	await Engine.get_main_loop().process_frame
 
@@ -227,7 +228,7 @@ static func _test_unavailable_card_does_not_submit(t) -> void:
 	view.action_requested.connect(func(_action_value) -> void: submitted += 1)
 	view._on_card_pressed("three-cost")
 	t.assert_eq(submitted, 0, "unavailable click never submits an action")
-	t.assert_eq(view.get_node("%StatusLabel").text, "Not enough Credit", "unavailable click displays concrete reason")
+	t.assert_eq(view.get_node("%StatusLabel").text, LocaleScript.ui("reason.credit"), "unavailable click displays concrete reason")
 	view.queue_free()
 	await Engine.get_main_loop().process_frame
 
@@ -491,7 +492,7 @@ static func _test_real_move_draw_attack_destroy_and_commands(t) -> void:
 	director.speed_scale = 5.0
 	var draw_probe := MotionProbe.new()
 	draw_probe.call_deferred("run_director", director, draw_result.events, draw_before, draw_after, view)
-	for _frame in range(30):
+	for _frame in range(240):
 		await Engine.get_main_loop().process_frame
 		if director.current_event_type == "card_drawn" and not view.get_tree().get_nodes_in_group("card_motion_proxy").is_empty(): break
 	var draw_proxies := view.get_tree().get_nodes_in_group("card_motion_proxy")
@@ -564,9 +565,9 @@ static func _test_real_move_draw_attack_destroy_and_commands(t) -> void:
 			director.speed_scale = 1.0
 			var command_probe := MotionProbe.new()
 			command_probe.call_deferred("run_director", director, command_result.events, command_before, command_after, view)
-			for _frame in range(30):
+			for _frame in range(120):
 				await Engine.get_main_loop().process_frame
-				if director.current_event_type in ["order_played", "countermeasure_activated", "countermeasure_deactivated"]: break
+				if director.current_event_type in ["order_played", "countermeasure_activated", "countermeasure_deactivated"] and not view.get_tree().get_nodes_in_group("card_motion_proxy").is_empty(): break
 			var command_proxies := view.get_tree().get_nodes_in_group("card_motion_proxy")
 			var command_source := (view.snapshot_card_rects(command_before)[command.source_id] as Rect2).position
 			await Engine.get_main_loop().create_timer(0.14).timeout
@@ -703,31 +704,31 @@ static func _test_coach_priority_and_exact_copy(t) -> void:
 	var end := _action("end_turn")
 
 	_assert_coach(t, snapshot.merged({"active_player_id": "opponent"}, true), [deploy, end], {},
-		"Opponent is acting.", ["one-cost"], "opponent_turn")
+		LocaleScript.ui("coach.opponent"), ["one-cost"], "opponent_turn")
 	_assert_coach(t, snapshot, [deploy, move, attack, order, counter, end], {"selected_source_id": "one-cost"},
-		"Choose a highlighted Support Line slot.", ["counter", "front-unit", "one-cost", "order", "support-unit"], "support_slot")
+		LocaleScript.ui("coach.support_slot"), ["counter", "front-unit", "one-cost", "order", "support-unit"], "support_slot")
 	_assert_coach(t, snapshot, [move, attack, end], {"selected_source_id": "support-unit", "selected_zone": "frontline"},
-		"Choose a highlighted Frontline slot.", ["front-unit", "support-unit"], "frontline_slot")
+		LocaleScript.ui("coach.frontline_slot"), ["front-unit", "support-unit"], "frontline_slot")
 	_assert_coach(t, snapshot, [order, end], {"selected_source_id": "order"},
-		"Choose a highlighted target.", ["order"], "target")
+		LocaleScript.ui("coach.target"), ["order"], "target")
 	var compound_order := _action("play_order", "order", ["enemy-unit", "enemy-hq"])
 	_assert_coach(t, snapshot, [compound_order, end], {"selected_source_id": "order", "selected_targets": ["enemy-unit"]},
-		"Choose a highlighted target.", ["order"], "target")
+		LocaleScript.ui("coach.target"), ["order"], "target")
 	_assert_coach(t, snapshot, [deploy, move, attack, order, counter, end], {},
-		"Select a highlighted card to deploy. You have 1 Credit.", ["counter", "front-unit", "one-cost", "order", "support-unit"], "deploy")
+		LocaleScript.ui("coach.deploy") % 1, ["counter", "front-unit", "one-cost", "order", "support-unit"], "deploy")
 	_assert_coach(t, snapshot, [move, attack, order, counter, end], {},
-		"Select a ready unit, then choose a highlighted Frontline slot.", ["counter", "front-unit", "order", "support-unit"], "move")
+		LocaleScript.ui("coach.move"), ["counter", "front-unit", "order", "support-unit"], "move")
 	_assert_coach(t, snapshot, [attack, order, counter, end], {},
-		"Select a ready unit, then choose a highlighted target.", ["counter", "front-unit", "order"], "attack")
+		LocaleScript.ui("coach.attack"), ["counter", "front-unit", "order"], "attack")
 	_assert_coach(t, snapshot, [order, counter, end], {},
-		"Select a highlighted Order card to play.", ["counter", "order"], "order")
+		LocaleScript.ui("coach.order"), ["counter", "order"], "order")
 	_assert_coach(t, snapshot, [counter, end], {},
-		"Select a highlighted Countermeasure card to activate or deactivate.", ["counter"], "countermeasure")
+		LocaleScript.ui("coach.countermeasure"), ["counter"], "countermeasure")
 	_assert_coach(t, snapshot, [ability, end], {},
-		"Select a ready unit to use an ability.", ["ability-unit"], "ability")
+		LocaleScript.ui("coach.ability"), ["ability-unit"], "ability")
 	_assert_coach(t, snapshot, [end], {},
-		"No other actions are available. End the turn to gain another Credit slot.", [], "end_turn")
-	_assert_coach(t, snapshot, [], {}, "No legal action is available.", [], "none")
+		LocaleScript.ui("coach.end_turn"), [], "end_turn")
+	_assert_coach(t, snapshot, [], {}, LocaleScript.ui("coach.none"), [], "none")
 
 
 static func _test_milestone_objective_progression(t) -> void:
@@ -760,7 +761,7 @@ static func _test_milestone_objective_progression(t) -> void:
 	onboarding.completed_attack = true
 	result = MatchCoachModel.derive(snapshot, actions, {}, onboarding)
 	t.assert_eq(result.next_kind, "deploy", "completed milestones fall back to truthful normal priority")
-	t.assert_eq(result.objective, "Select a highlighted card to deploy. You have 1 Credit.", "fallback objective describes an available action")
+	t.assert_eq(result.objective, LocaleScript.ui("coach.deploy") % 1, "fallback objective describes an available action")
 	t.assert_eq(result.legal_source_ids, expected_sources, "fallback keeps every legal source")
 	t.assert_eq(result.source_reasons, expected_reasons, "fallback keeps complete-list source reasons")
 	t.assert_true(not result.end_turn_only, "fallback keeps complete-list End Turn semantics")
@@ -783,7 +784,7 @@ static func _test_real_first_turn_credit_fixture(t) -> void:
 	var result := MatchCoachModel.derive(public_snapshot, actions, {}, {})
 	t.assert_true(result.legal_source_ids.has(active.hand[0].instance_id), "one-Credit unit is a legal source")
 	t.assert_true(not result.legal_source_ids.has(active.hand[1].instance_id), "three-Credit unit is not a legal source")
-	t.assert_eq(result.objective, "Select a highlighted card to deploy. You have 1 Credit.", "real first-turn fixture uses exact deploy copy")
+	t.assert_eq(result.objective, LocaleScript.ui("coach.deploy") % 1, "real first-turn fixture uses exact deploy copy")
 
 
 static func _test_real_active_countermeasure_is_legal(t) -> void:
@@ -809,26 +810,26 @@ static func _test_real_active_countermeasure_is_legal(t) -> void:
 	t.assert_eq(toggle_actions.size(), 1, "real active Countermeasure retains its legal deactivation toggle")
 	t.assert_true(result.legal_source_ids.has(counter.instance_id), "active Countermeasure remains a legal coach source")
 	t.assert_true(not result.source_reasons.has(counter.instance_id), "legal active Countermeasure is never unavailable")
-	t.assert_eq(result.objective, "Select a highlighted Countermeasure card to activate or deactivate.", "active Countermeasure objective names both toggle directions")
+	t.assert_eq(result.objective, LocaleScript.ui("coach.countermeasure"), "active Countermeasure objective names both toggle directions")
 
 
 static func _test_source_reasons(t) -> void:
 	var snapshot := _snapshot()
 	var result := MatchCoachModel.derive(snapshot, [_action("end_turn")], {}, {})
-	t.assert_eq(result.source_reasons.get("three-cost"), "Not enough Credit", "unaffordable card explains Credit")
-	t.assert_eq(result.source_reasons.get("targetless-order"), "No legal target", "targetless Order explains target")
-	t.assert_eq(result.source_reasons.get("active-counter"), "Already active", "active Countermeasure explains state")
-	t.assert_eq(result.source_reasons.get("unknown"), "No legal action for this card", "unknown category has safe fallback")
+	t.assert_eq(result.source_reasons.get("three-cost"), LocaleScript.ui("reason.credit"), "unaffordable card explains Credit")
+	t.assert_eq(result.source_reasons.get("targetless-order"), LocaleScript.ui("reason.no_target"), "targetless Order explains target")
+	t.assert_eq(result.source_reasons.get("active-counter"), LocaleScript.ui("reason.active"), "active Countermeasure explains state")
+	t.assert_eq(result.source_reasons.get("unknown"), LocaleScript.ui("reason.none"), "unknown category has safe fallback")
 
 	var full := snapshot.duplicate(true)
 	full.players.player.support_line = [_card("s0", "Unit", 0), _card("s1", "Unit", 0), _card("s2", "Unit", 0), _card("s3", "Unit", 0)]
 	result = MatchCoachModel.derive(full, [_action("end_turn")], {}, {})
-	t.assert_eq(result.source_reasons.get("one-cost"), "Support Line is full", "deployable Unit explains full Support Line")
+	t.assert_eq(result.source_reasons.get("one-cost"), LocaleScript.ui("reason.support_full"), "deployable Unit explains full Support Line")
 
 	var opponent_turn := snapshot.merged({"active_player_id": "opponent"}, true)
 	result = MatchCoachModel.derive(opponent_turn, [], {}, {})
 	for source_id in ["one-cost", "three-cost", "targetless-order", "active-counter", "unknown"]:
-		t.assert_eq(result.source_reasons.get(source_id), "Wait for your turn", "opponent turn reason overrides card details")
+		t.assert_eq(result.source_reasons.get(source_id), LocaleScript.ui("reason.wait"), "opponent turn reason overrides card details")
 
 
 static func _test_end_turn_requires_the_sole_complete_action(t) -> void:
@@ -848,6 +849,7 @@ static func _test_persistence(t) -> void:
 	var defaults: Dictionary = store.load()
 	t.assert_eq(defaults, {
 		"deck_hint_dismissed": false,
+		"how_to_play_seen": false,
 		"deployed_unit": false,
 		"moved_to_frontline": false,
 		"completed_attack": false,
@@ -858,6 +860,7 @@ static func _test_persistence(t) -> void:
 	t.assert_true(not FileAccess.file_exists(path + ".tmp"), "atomic save leaves no temporary file")
 	t.assert_eq(OnboardingStore.new(path).load(), {
 		"deck_hint_dismissed": true,
+		"how_to_play_seen": false,
 		"deployed_unit": true,
 		"moved_to_frontline": true,
 		"completed_attack": true,

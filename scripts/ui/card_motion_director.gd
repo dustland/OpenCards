@@ -149,14 +149,13 @@ func _play_damage(view: MatchView, event: Dictionary, before_rects: Dictionary, 
 
 func _play_turn_banner(view: MatchView, player_id: String, duration: float, generation: int) -> void:
 	var banner := Label.new()
-	banner.text = "YOUR TURN" if player_id == "player" else "OPPONENT'S TURN"
+	banner.text = Locale.ui("turn.yours") if player_id == "player" else Locale.ui("turn.opponent")
 	banner.add_theme_font_size_override("font_size", 34)
 	banner.add_theme_color_override("font_color", Color("f4dd96"))
 	banner.add_theme_color_override("font_outline_color", Color(0.07, 0.08, 0.06, 0.9))
 	banner.add_theme_constant_override("outline_size", 6)
 	banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	banner.add_to_group("card_motion_proxy")
 	view.add_child(banner)
 	var area: Rect2 = view.get_global_rect()
 	banner.size = Vector2(area.size.x, 46)

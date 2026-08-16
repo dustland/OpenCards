@@ -32,7 +32,7 @@ godot --path . --script tests/capture_ui.gd
 godot --headless --path . --script tests/run_ai_match.gd -- 90210 standard hard 300
 ```
 
-The strict Task6 runner covers Result contracts and the complete Deck Builder -> Mulligan -> Match -> Result -> Rematch/Builder flow at 1280x720 and true 1024x720. It rejects runtime and teardown diagnostics except the exact known macOS headless system-CA lookup failure. The capture command writes five deterministic UI captures to ignored `builds/qa/`. The representative AI command must complete without illegal actions and reproduce its replay.
+The strict Task6 runner covers Result contracts and the complete Title -> Mulligan -> Match -> Result -> Rematch/Home flow at 1280x720 and true 1024x720. It rejects runtime and teardown diagnostics except the exact known macOS headless system-CA lookup failure. The capture command writes five deterministic UI captures to ignored `builds/qa/`. The representative AI command must complete without illegal actions and reproduce its replay.
 
 ## Export
 
@@ -69,7 +69,7 @@ Pushes to `main` and manual runs of **Build Godot Web and Deploy to GitHub Pages
 
 ### Custom domain
 
-The production URL is <https://opencards.dustland.ai>. First verify the `dustland.ai` domain for the `lyuai` GitHub organization to reduce custom-domain takeover risk. Then configure `opencards.dustland.ai` in the repository under **Settings > Pages > Custom domain** before changing DNS. The DNS record must be:
+The production URL is <https://opencards.lyu.ai>. HTTPS is issued by GitHub Pages after the custom domain is verified; this repository cannot mint the certificate. Then configure `opencards.lyu.ai` in the repository under **Settings > Pages > Custom domain**. The DNS record must be:
 
 ```text
 Type:  CNAME

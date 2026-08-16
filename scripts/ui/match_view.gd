@@ -7,6 +7,7 @@ const ActionBuilderScript = preload("res://scripts/ui/action_builder.gd")
 const CardViewScene = preload("res://scenes/ui/card_view.tscn")
 const MatchCoachModelScript = preload("res://scripts/ui/match_coach_model.gd")
 const CardMotionDirectorScript = preload("res://scripts/ui/card_motion_director.gd")
+const LocaleScript = preload("res://scripts/ui/locale.gd")
 
 var router: Main
 var model := MatchInteractionModel.new()
@@ -19,6 +20,11 @@ var animation_mode := "on"
 var animation_speed_scale := 0.01 if DisplayServer.get_name() == "headless" else 1.0
 var _motion_director = CardMotionDirectorScript.new()
 var _card_registry: Dictionary = {}
+var _coach_pulse: Tween
+var _inspect_panel: PanelContainer
+var _last_layout_size := Vector2.ZERO
+
+signal how_to_play_requested
 
 class MatchInteractionModel:
 	var selected_source_id := ""
@@ -35,7 +41,7 @@ class MatchInteractionModel:
 		selected_targets.clear()
 		selected_zone = ""
 		selected_slot = -1
-		status_message = "Choose a highlighted target" if not _source_actions().is_empty() else "No legal action for this card"
+		status_message = ""
 	func highlighted_targets() -> Array[String]:
 		var result: Array[String] = []
 		for action in _candidate_actions():
@@ -72,17 +78,17 @@ class MatchInteractionModel:
 		var complete := _complete_actions()
 		if complete.size() != 1: return null
 		var action = complete[0]
-		if action.type not in ["play_order", "deploy_unit"] and action.target_ids.size() < 2: return null
 		cancel()
 		return action
 	func can_confirm() -> bool:
-		return not _has_unspecified_dimension() and _complete_actions().size() == 1 and (_complete_actions()[0].type in ["play_order", "deploy_unit"] or _complete_actions()[0].target_ids.size() > 1)
+		if selected_source_id.is_empty():
+			return false
+		return not _has_unspecified_dimension() and _complete_actions().size() == 1
 	func _take_immediate_if_complete():
 		if _has_unspecified_dimension(): return null
 		var complete := _complete_actions()
 		if complete.size() != 1: return null
 		var action = complete[0]
-		if action.type in ["play_order", "deploy_unit"] or action.target_ids.size() > 1: return null
 		cancel()
 		return action
 	func _complete_actions() -> Array:
@@ -149,6 +155,10 @@ func _ready() -> void:
 	%AnimationButton.pressed.connect(_on_animation_pressed)
 	resized.connect(_apply_responsive_layout)
 	tree_exiting.connect(cancel_motion)
+	_install_lane_chrome()
+	_install_help_button()
+	_style_coach()
+	_bind_chrome()
 	_apply_responsive_layout()
 
 
@@ -156,19 +166,29 @@ func _apply_responsive_layout() -> void:
 	if not is_node_ready():
 		return
 	var compact := size.x <= 1000.0
-	%TimelinePanel.custom_minimum_size.x = 136.0 if compact else 148.0
-	%HandScroll.custom_minimum_size.y = 170.0 if compact else 178.0
-	var row_height := 118.0
+	var size_changed := not size.is_equal_approx(_last_layout_size)
+	_last_layout_size = size
+	%TimelinePanel.custom_minimum_size.x = 120.0 if compact else 148.0
+	%HandScroll.custom_minimum_size.y = 158.0 if compact else 178.0
+	var row_height := 112.0 if compact else 118.0
 	for path in ["Margin/Columns/Board/OpponentArea", "Margin/Columns/Board/Frontline", "Margin/Columns/Board/PlayerArea"]:
 		(get_node(path) as Control).custom_minimum_size.y = row_height
 	var margin := get_node("Margin") as MarginContainer
 	margin.offset_left = 6.0 if compact else 8.0
 	margin.offset_right = -6.0 if compact else -8.0
-	cancel_motion()
+	%CancelButton.custom_minimum_size.x = 56.0 if compact else 72.0
+	%ConfirmButton.custom_minimum_size.x = 64.0 if compact else 82.0
+	%EndTurnButton.custom_minimum_size.x = 76.0 if compact else 90.0
+	%ConcedeButton.custom_minimum_size.x = 64.0 if compact else 86.0
+	%AnimationButton.visible = not compact
+	%CoachObjective.add_theme_font_size_override("font_size", 14 if compact else 16)
+	if size_changed:
+		cancel_motion()
 
 func initialize(main: Main, payload: Dictionary) -> void:
 	router = main
 	_onboarding_state = payload.get("onboarding", {}).duplicate(true)
+	_bind_chrome()
 	render_events(payload.get("events", []))
 	render_snapshot(payload.get("snapshot", {}))
 
@@ -182,21 +202,18 @@ func render_snapshot(next_snapshot: Dictionary) -> void:
 	var players: Dictionary = snapshot.get("players", {})
 	var player: Dictionary = players.get("player", {})
 	var opponent: Dictionary = players.get("opponent", {})
-	var phase_text := str(snapshot.get("phase", "")).capitalize()
 	var active_player_id := str(snapshot.get("active_player_id", ""))
-	var phase_suffix := ""
-	if phase_text.to_lower() == "action":
-		phase_suffix = "  —  " + ("YOUR TURN" if active_player_id == "player" else "OPPONENT'S TURN")
-	%TurnLabel.text = "Turn %d  |  %s%s" % [int(snapshot.get("turn", 0)), phase_text, phase_suffix]
-	%OpponentLabel.text = "%s  HQ %d  Hand %d  Deck %d" % [str(opponent.get("nation", "Opponent")), int(opponent.get("hq_defense", 0)), (opponent.get("hand", []) as Array).size(), int(opponent.get("deck_count", 0))]
-	%PlayerLabel.text = "%s  HQ %d  Hand %d  Deck %d  Discard %d" % [
-		str(player.get("nation", "Player")),
-		int(player.get("hq_defense", 0)),
-		(player.get("hand", []) as Array).size(),
-		int(player.get("deck_count", 0)),
-		(player.get("discard", []) as Array).size(),
-	]
-	%CreditLabel.text = "Credit %d / %d" % [int(player.get("credit", 0)), int(player.get("credit_slots", 0))]
+	var phase_text := LocaleScript.ui("turn.yours") if active_player_id == "player" else LocaleScript.ui("turn.opponent")
+	if str(snapshot.get("phase", "")).to_lower() != "action":
+		phase_text = str(snapshot.get("phase", "")).capitalize()
+	%TurnLabel.text = LocaleScript.ui("turn.header") % [int(snapshot.get("turn", 0)), phase_text]
+	_style_turn_chip(active_player_id == "player" and str(snapshot.get("phase", "")).to_lower() == "action")
+	%OpponentLabel.text = _status_strip(opponent, false)
+	%OpponentLabel.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	%PlayerLabel.text = _status_strip(player, true)
+	%PlayerLabel.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	%CreditLabel.text = "%s %d / %d" % [LocaleScript.ui("status.credit"), int(player.get("credit", 0)), int(player.get("credit_slots", 0))]
+	_update_lane_chips()
 	%OpponentSupport.render(opponent.get("support_line", []), false, _resolve_card_view)
 	%Frontline.render(snapshot.get("frontline", []), false, _resolve_card_view)
 	%PlayerSupport.render(player.get("support_line", []), false, _resolve_card_view)
@@ -227,8 +244,8 @@ func render_events(events: Array) -> void:
 
 func set_animation_mode(mode: String) -> void:
 	animation_mode = mode if mode in ["on", "reduced"] else "on"
-	if is_node_ready():
-		%AnimationButton.text = "Animation: Reduced" if animation_mode == "reduced" else "Animation: On"
+	if has_node("%AnimationButton"):
+		%AnimationButton.text = LocaleScript.ui("match.animation_reduced") if animation_mode == "reduced" else LocaleScript.ui("match.animation_on")
 		%AnimationButton.tooltip_text = "Use full card motion" if animation_mode == "reduced" else "Use reduced card motion"
 
 func _on_animation_pressed() -> void:
@@ -249,11 +266,17 @@ func animation_zone_rect(player_id: String) -> Rect2:
 	return (%OpponentSupport if player_id == "opponent" else %PlayerHand).get_global_rect()
 
 func deck_edge_rect(player_id: String) -> Rect2:
+	var pile := %OpponentDeckPile if player_id == "opponent" else %PlayerDeckPile
+	if pile.visible and pile.size.x > 1.0:
+		return pile.get_global_rect()
 	var area: Rect2 = (%OpponentSupport if player_id == "opponent" else %HandScroll).get_global_rect()
 	return Rect2(area.end.x - 18.0, area.position.y + area.size.y * 0.5 - 24.0, 36.0, 48.0)
 
 func command_area_rect() -> Rect2:
-	return (%AnimationButton as Control).get_global_rect()
+	var command := %AnimationButton as Control
+	if command.visible and command.size.x > 1.0:
+		return command.get_global_rect()
+	return (%EndTurnButton as Control).get_global_rect()
 
 
 # Emphasized by CardMotionDirector on credit_refilled events.
@@ -314,7 +337,10 @@ func _add_zone_snapshot_rects(result: Dictionary, cards: Array, zone: ZoneView) 
 		if cards[index] is Dictionary and not bool(cards[index].get("hidden", false)):
 			var instance_id := str(cards[index].get("instance_id", ""))
 			if not instance_id.is_empty():
-				var slot_rect := (zone.get_child(index) as Control).get_global_rect()
+				var slots: Array = zone._drop_slots()
+				if index >= slots.size():
+					continue
+				var slot_rect := (slots[index] as Control).get_global_rect()
 				result[instance_id] = Rect2(slot_rect.position.x, zone.global_position.y, 108.0, 118.0)
 
 func set_legal_actions(actions: Array) -> void:
@@ -361,7 +387,7 @@ func show_rejection(code: String, message: String) -> void:
 
 const HAND_CARD_WIDTH := 116.0
 const HAND_CARD_HEIGHT := 162.0
-const HAND_ADVANCE := 108.0
+const HAND_ADVANCE := 124.0
 const HAND_MAX_ROTATION := 9.0
 const HAND_ARC_DEPTH := 8.0
 const HAND_MARGIN := 16.0
@@ -475,7 +501,10 @@ func _on_slot_pressed(zone: String, slot: int) -> void:
 	if _reject_locked(): return
 	_clear_rejection()
 	var action = model.choose_slot(zone, slot)
-	if action != null: action_requested.emit(action)
+	if action != null:
+		action_requested.emit(action)
+	elif slot not in model.highlighted_slots(zone):
+		show_rejection("illegal_drop", LocaleScript.ui("reason.none"))
 	_refresh_coach()
 
 func _on_card_dropped(instance_id: String, zone: String, slot: int) -> void:
@@ -488,7 +517,10 @@ func _on_target_dropped(source_id: String, target_id: String) -> void:
 	_clear_rejection()
 	model.select_source(source_id)
 	var action = model.choose_target(target_id)
-	if action != null: action_requested.emit(action)
+	if action != null:
+		action_requested.emit(action)
+	elif not str(target_id).is_empty() and str(target_id) not in model.highlighted_targets():
+		show_rejection("illegal_drop", LocaleScript.ui("reason.no_target"))
 	_refresh_coach()
 
 func _gui_input(event: InputEvent) -> void:
@@ -528,7 +560,7 @@ func _on_cancel_pressed() -> void:
 
 func _reject_locked() -> bool:
 	if not _input_locked: return false
-	show_rejection("input_locked", "Wait for the opponent action to finish.")
+	show_rejection("input_locked", LocaleScript.ui("reason.locked"))
 	return true
 
 func _unhandled_key_input(event: InputEvent) -> void:
@@ -584,7 +616,12 @@ func _refresh_end_turn_state() -> void:
 
 
 func _refresh_coach_objective() -> void:
-	%CoachObjective.text = _rejection_message if not _rejection_message.is_empty() else str(_coach_state.get("objective", "No legal action is available."))
+	var next := _rejection_message if not _rejection_message.is_empty() else str(_coach_state.get("objective", LocaleScript.ui("coach.none")))
+	if model.can_confirm() and _rejection_message.is_empty():
+		next = LocaleScript.ui("coach.confirm")
+	if %CoachObjective.text != next:
+		%CoachObjective.text = next
+		_pulse_coach()
 
 
 func _apply_hand_states() -> void:
@@ -619,3 +656,120 @@ func _snapshot_state_key(value: Dictionary) -> String:
 		str(value.get("active_player_id", "")),
 		str(value.get("winner_id", "")),
 	]
+
+
+func _bind_chrome() -> void:
+	%CancelButton.text = LocaleScript.ui("match.cancel")
+	%ConfirmButton.text = LocaleScript.ui("match.confirm")
+	%EndTurnButton.text = LocaleScript.ui("match.end_turn")
+	%ConcedeButton.text = LocaleScript.ui("match.concede")
+	%ConcedeDialog.title = LocaleScript.ui("match.concede_title")
+	%ConcedeDialog.dialog_text = LocaleScript.ui("match.concede_body")
+	%ConcedeDialog.ok_button_text = LocaleScript.ui("match.concede_ok")
+	%ConcedeDialog.cancel_button_text = LocaleScript.ui("match.concede_cancel")
+	set_animation_mode(animation_mode)
+
+
+func _status_strip(side: Dictionary, include_discard: bool) -> String:
+	var parts: PackedStringArray = PackedStringArray([
+		"%s %d" % [LocaleScript.ui("status.hq"), int(side.get("hq_defense", 0))],
+		"%s %d" % [LocaleScript.ui("status.hand"), (side.get("hand", []) as Array).size()],
+		"%s %d" % [LocaleScript.ui("status.deck"), int(side.get("deck_count", 0))],
+	])
+	if include_discard:
+		parts.append("%s %d" % [LocaleScript.ui("status.discard"), (side.get("discard", []) as Array).size()])
+	return "   ".join(parts)
+
+
+func _install_lane_chrome() -> void:
+	_attach_lane(get_node("Margin/Columns/Board/OpponentArea") as Control, Color(0.42, 0.18, 0.14, 0.22), "OpponentLaneChip", "zone.enemy_support")
+	_attach_lane(get_node("Margin/Columns/Board/PlayerArea") as Control, Color(0.16, 0.28, 0.38, 0.24), "PlayerLaneChip", "zone.player_support")
+
+
+func _attach_lane(host: Control, tint: Color, chip_name: String, key: String) -> void:
+	if host.get_node_or_null("LaneBand") == null:
+		var band := ColorRect.new()
+		band.name = "LaneBand"
+		band.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		band.color = tint
+		band.set_anchors_preset(Control.PRESET_FULL_RECT)
+		host.add_child(band)
+		host.move_child(band, 0)
+	if host.get_node_or_null(chip_name) == null:
+		var chip := Label.new()
+		chip.name = chip_name
+		chip.unique_name_in_owner = true
+		chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		chip.add_theme_font_size_override("font_size", 12)
+		chip.add_theme_color_override("font_color", Color("e8e1d2"))
+		chip.position = Vector2(6, 2)
+		chip.z_index = 2
+		host.add_child(chip)
+	(host.get_node(chip_name) as Label).text = LocaleScript.ui(key)
+
+
+func _update_lane_chips() -> void:
+	if has_node("%OpponentLaneChip"):
+		%OpponentLaneChip.text = LocaleScript.ui("zone.enemy_support")
+	if has_node("%PlayerLaneChip"):
+		%PlayerLaneChip.text = LocaleScript.ui("zone.player_support")
+	var controller := str(snapshot.get("frontline_controller_id", ""))
+	var control_text := LocaleScript.ui("frontline.open")
+	if controller == "player":
+		control_text = LocaleScript.ui("frontline.yours")
+	elif controller == "opponent":
+		control_text = LocaleScript.ui("frontline.enemy")
+	%Frontline.lane_caption = "%s · %s" % [LocaleScript.ui("zone.frontline"), control_text]
+	%Frontline.queue_redraw()
+
+
+func _install_help_button() -> void:
+	if has_node("%HelpButton"):
+		return
+	var help := Button.new()
+	help.name = "HelpButton"
+	help.unique_name_in_owner = true
+	help.text = LocaleScript.ui("match.help")
+	help.custom_minimum_size = Vector2(36, 36)
+	help.pressed.connect(func() -> void: how_to_play_requested.emit())
+	%TurnLabel.get_parent().add_child(help)
+
+
+func _style_coach() -> void:
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.16, 0.18, 0.12, 0.92)
+	style.border_color = Color("c4a45a")
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(4)
+	style.content_margin_left = 10
+	style.content_margin_right = 10
+	style.content_margin_top = 6
+	style.content_margin_bottom = 6
+	%CoachObjective.add_theme_stylebox_override("normal", style)
+	%CoachObjective.add_theme_font_size_override("font_size", 16)
+	%CoachObjective.add_theme_color_override("font_color", Color("f2dd9a"))
+	%CoachObjective.custom_minimum_size.y = 36
+
+
+func _style_turn_chip(active: bool) -> void:
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color("3a3420") if active else Color(0, 0, 0, 0)
+	style.border_color = Color("d1b56f") if active else Color(0, 0, 0, 0)
+	style.set_border_width_all(2 if active else 0)
+	style.set_corner_radius_all(4)
+	style.content_margin_left = 8
+	style.content_margin_right = 8
+	style.content_margin_top = 4
+	style.content_margin_bottom = 4
+	%TurnLabel.add_theme_stylebox_override("normal", style)
+
+
+func _pulse_coach() -> void:
+	if not is_node_ready() or animation_speed_scale < 0.05:
+		return
+	if _coach_pulse != null and _coach_pulse.is_valid():
+		_coach_pulse.kill()
+	%CoachObjective.pivot_offset = %CoachObjective.size * 0.5
+	_coach_pulse = create_tween()
+	_coach_pulse.tween_property(%CoachObjective, "modulate", Color(1.2, 1.15, 0.9), 0.08)
+	_coach_pulse.tween_property(%CoachObjective, "modulate", Color.WHITE, 0.18)

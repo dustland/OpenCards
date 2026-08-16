@@ -17,6 +17,7 @@ const ResultViewScene = preload("res://scenes/ui/result_view.tscn")
 const CardInstanceScript = preload("res://scripts/core/card_instance.gd")
 const CoreCards = preload("res://tests/fixtures/core_cards.gd")
 const AIPlayerScript = preload("res://scripts/ai/ai_player.gd")
+const LocaleScript = preload("res://scripts/ui/locale.gd")
 
 
 class TestScreen:
@@ -145,9 +146,9 @@ static func _test_terminal_reason_uses_authoritative_events(t) -> void:
 
 static func _test_result_view_outcomes_and_layout(t) -> void:
 	var cases := [
-		["player", "Victory"],
-		["opponent", "Defeat"],
-		["", "Draw"],
+		["player", LocaleScript.ui("result.victory")],
+		["opponent", LocaleScript.ui("result.defeat")],
+		["", LocaleScript.ui("result.draw")],
 	]
 	for viewport_size in [Vector2(1280, 720), Vector2(1024, 720)]:
 		for outcome in cases:
@@ -162,8 +163,8 @@ static func _test_result_view_outcomes_and_layout(t) -> void:
 			})
 			await Engine.get_main_loop().process_frame
 			t.assert_eq(view.get_node("%OutcomeLabel").text, outcome[1], "result labels %s outcome" % outcome[1])
-			t.assert_eq(view.get_node("%ReasonLabel").text, "Headquarters destroyed", "result renders exact terminal reason")
-			t.assert_eq(view.get_node("%TurnsLabel").text, "12 turns", "result renders turn statistics")
+			t.assert_eq(view.get_node("%ReasonLabel").text, LocaleScript.ui("reason.headquarters_destroyed"), "result renders exact terminal reason")
+			t.assert_eq(view.get_node("%TurnsLabel").text, LocaleScript.ui("result.turns") % 12, "result renders turn statistics")
 			t.assert_eq(view.size, viewport_size, "result root fits viewport")
 			var viewport_rect := Rect2(Vector2.ZERO, viewport_size)
 			for path in ["%OutcomeLabel", "%WinnerLabel", "%ReasonLabel", "%TurnsLabel", "%RematchButton", "%DeckBuilderButton"]:
@@ -224,9 +225,7 @@ static func _test_main_result_returns_to_builder_with_preferences(t) -> void:
 	main.show_screen("result", {"winner_id": "opponent", "reason": "concede", "turns": 3, "seed": 4, "replay_log": {}})
 	main.current_screen.deck_builder_requested.emit()
 	var payload: Dictionary = (main.current_screen as TestScreen).payload
-	t.assert_eq(payload, {"catalog": null, "deck_id": "user-preferred", "difficulty": "hard", "player_deck": main.selected_player_deck}, "builder return preserves full deck and difficulty preferences")
-	(payload.player_deck.cards as Array).append("mutated")
-	t.assert_eq(main.selected_player_deck.cards, ["one"], "builder payload owns a deep copy")
+	t.assert_eq(payload, {"deck_id": "user-preferred", "difficulty": "hard"}, "home return preserves deck id and difficulty")
 	main.free()
 	host.free()
 
@@ -258,7 +257,7 @@ static func _test_rendered_opponent_hand_is_private(t) -> void:
 	]
 	view.render_snapshot(snapshot)
 	await Engine.get_main_loop().process_frame
-	t.assert_true("Hand 2" in view.get_node("%OpponentLabel").text, "rendered opponent hand count matches snapshot")
+	t.assert_true("%s 2" % LocaleScript.ui("status.hand") in view.get_node("%OpponentLabel").text, "rendered opponent hand count matches snapshot")
 	for card in view.snapshot.players.opponent.hand:
 		t.assert_eq(card, {"hidden": true}, "rendered hidden card retains no private identifier")
 	var rendered_text := _visible_text(view)
@@ -353,8 +352,7 @@ static func _test_match_selection_filters_compound_candidates(t) -> void:
 	model.select_source("p-order")
 	t.assert_eq(model.choose_target("b"), null, "first target never chooses an unspecified candidate")
 	t.assert_eq(model.highlighted_targets(), ["a"], "next target follows selected target order")
-	t.assert_eq(model.choose_target("a"), null, "multi-target order waits for confirmation")
-	t.assert_eq(model.confirm_action(), order_ba, "confirmation returns the fully specified ordered action")
+	t.assert_eq(model.choose_target("a"), order_ba, "completed ordered action auto-submits")
 
 	var deploy_plain = ActionBuilder.deploy("p-unit", 2, "player", 21)
 	var deploy_targeted = GameAction.create("deploy_unit", "player", "p-unit", ["ally"], {"support_slot": 2}, 21)
@@ -362,15 +360,12 @@ static func _test_match_selection_filters_compound_candidates(t) -> void:
 	model.select_source("p-unit")
 	t.assert_eq(model.choose_slot("support", 2), null, "compound deploy does not choose an unspecified target variant")
 	t.assert_eq(model.highlighted_targets(), ["ally"], "remaining deploy target is explicit")
-	t.assert_eq(model.choose_target("ally"), null, "targeted deploy waits for confirmation")
-	t.assert_eq(model.confirm_action(), deploy_targeted, "compound deploy confirms exact legal action")
+	t.assert_eq(model.choose_target("ally"), deploy_targeted, "targeted deploy auto-submits after last target")
 	var deploy_slot_one = ActionBuilder.deploy("p-unit", 1, "player", 22)
 	var deploy_slot_three = ActionBuilder.deploy("p-unit", 3, "player", 22)
 	model.set_legal_actions([deploy_slot_one, deploy_slot_three])
 	model.select_source("p-unit")
-	model.choose_slot("support", 3)
-	t.assert_eq(model.highlighted_slots("support"), [3], "chosen slot filters remaining candidates")
-	t.assert_eq(model.confirm_action(), deploy_slot_three, "slot confirmation never chooses another legal slot")
+	t.assert_eq(model.choose_slot("support", 3), deploy_slot_three, "complete slot auto-submits the chosen action")
 
 
 static func _test_match_selection_cancels_and_reports_rejection(t) -> void:
@@ -426,13 +421,13 @@ static func _test_match_label_reports_active_player_and_player_zones(t) -> void:
 	var snapshot := _match_snapshot(2)
 	snapshot.players.player.discard = [{"instance_id": "p-discard-1", "title": "Discarded", "category": "Unit", "owner_id": "player"}]
 	view.render_snapshot(snapshot)
-	t.assert_true("YOUR TURN" in view.get_node("%TurnLabel").text, "turn label advertises the active player's turn")
-	t.assert_true("Discard 1" in view.get_node("%PlayerLabel").text, "player label reports the discard pile size")
-	t.assert_true("Deck 34" in view.get_node("%PlayerLabel").text, "player label reports the deck count for fatigue awareness")
+	t.assert_true(LocaleScript.ui("turn.yours") in view.get_node("%TurnLabel").text, "turn label advertises the active player's turn")
+	t.assert_true("%s 1" % LocaleScript.ui("status.discard") in view.get_node("%PlayerLabel").text, "player label reports the discard pile size")
+	t.assert_true("%s 34" % LocaleScript.ui("status.deck") in view.get_node("%PlayerLabel").text, "player label reports the deck count for fatigue awareness")
 
 	snapshot.active_player_id = "opponent"
 	view.render_snapshot(snapshot)
-	t.assert_true("OPPONENT'S TURN" in view.get_node("%TurnLabel").text, "turn label advertises the opponent's turn")
+	t.assert_true(LocaleScript.ui("turn.opponent") in view.get_node("%TurnLabel").text, "turn label advertises the opponent's turn")
 	view.queue_free()
 	await Engine.get_main_loop().process_frame
 
@@ -556,7 +551,7 @@ static func _test_match_hq_signals_lock_and_drop_parity(t) -> void:
 	view._on_slot_pressed("frontline", 0)
 	view._on_end_turn_pressed()
 	t.assert_eq(emitted.size(), 2, "all target slot and command handlers honor lock")
-	t.assert_eq(view.get_node("%StatusLabel").text, "Wait for the opponent action to finish.", "locked handler explains rejection")
+	t.assert_eq(view.get_node("%StatusLabel").text, LocaleScript.ui("reason.locked"), "locked handler explains rejection")
 	t.assert_true(view.get_node("%OpponentHQ").disabled, "locked HQ rejects click and drop")
 	t.assert_true(view.get_node("%Frontline").get_child(0).disabled, "locked slot rejects drops")
 	view.free()
@@ -571,15 +566,14 @@ static func _test_match_compound_signals_require_confirmation(t) -> void:
 	var emitted: Array = []
 	view.action_requested.connect(func(action) -> void: emitted.append(action))
 	view.get_node("%PlayerSupport").card_dropped.emit("p-hand-0", "support", 0)
+	t.assert_eq(emitted, [], "compound drop waits until the last target is chosen")
 	view.get_node("%Frontline").get_child(0).get_child(0).card_pressed.emit("p-front")
-	t.assert_eq(emitted, [], "compound drop path waits for explicit confirmation")
-	view.get_node("%ConfirmButton").pressed.emit()
-	t.assert_eq(emitted, [deploy], "compound drop path confirms exact action")
+	t.assert_eq(emitted, [deploy], "compound drop path auto-submits after last target")
 	view.set_legal_actions([deploy])
 	view.get_node("%PlayerHand").get_child(0).card_pressed.emit("p-hand-0")
 	view.get_node("%PlayerSupport").slot_pressed.emit("support", 0)
+	t.assert_eq(emitted, [deploy], "click path still waits for remaining target")
 	view.get_node("%Frontline").get_child(0).get_child(0).card_pressed.emit("p-front")
-	view.get_node("%ConfirmButton").pressed.emit()
 	t.assert_eq(emitted, [deploy, deploy], "compound click and drop paths have parity")
 	view.free()
 
@@ -668,7 +662,7 @@ static func _test_theme_and_screen_contract(t) -> void:
 	var theme := ThemeFactory.create()
 	t.assert_true(theme.has_color("font_color", "Label"), "theme defines label color")
 	t.assert_eq(theme.get_color("font_color", "Label"), Color("e8e1d2"), "approved warm text")
-	t.assert_eq(Main.VALID_SCREENS, ["deck_builder", "mulligan", "match", "result"], "complete flow")
+	t.assert_eq(Main.VALID_SCREENS, ["title", "deck_builder", "mulligan", "match", "result"], "complete flow")
 
 
 static func _test_router_replaces_screen_and_initializes_payload(t) -> void:

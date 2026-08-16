@@ -38,6 +38,12 @@ theme_override_font_sizes/font_size = 24
 text = "Deck Builder"
 vertical_alignment = 1
 
+[node name="HomeButton" type="Button" parent="Margin/Page/Header"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(100, 40)
+layout_mode = 2
+text = "返回主页"
+
 [node name="DeckSelector" type="OptionButton" parent="Margin/Page/Header"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(230, 40)
@@ -88,7 +94,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 22)
 layout_mode = 2
 size_flags_horizontal = 3
-text = "Pick a deck from the Deck menu, choose a difficulty, then press Start Battle. Click cards to edit."
+text = "Choose a difficulty and start battle, or click cards to edit."
 text_overrun_behavior = 3
 vertical_alignment = 1
 
@@ -243,6 +249,7 @@ layout_mode = 2
 size_flags_horizontal = 3
 text = "Start Battle"
 
+[connection signal="pressed" from="Margin/Page/Header/HomeButton" to="." method="_on_home_pressed"]
 [connection signal="item_selected" from="Margin/Page/Header/DeckSelector" to="." method="_on_deck_selected"]
 [connection signal="pressed" from="Margin/Page/Header/Difficulty/Easy" to="." method="_on_difficulty_pressed" binds=["easy"]]
 [connection signal="pressed" from="Margin/Page/Header/Difficulty/Standard" to="." method="_on_difficulty_pressed" binds=["standard"]]

@@ -1,6 +1,7 @@
 extends SceneTree
 
 const MainScene = preload("res://scenes/main.tscn")
+const LocaleScript = preload("res://scripts/ui/locale.gd")
 const GameAction = preload("res://scripts/core/game_action.gd")
 
 var _failed := false
@@ -27,10 +28,10 @@ func _run_complete_flow(viewport_size: Vector2i) -> void:
 	var app = MainScene.instantiate()
 	root.add_child(app)
 	await _frames(3)
-	_check(app.current_screen != null, "Deck Builder is instantiated")
-	_check_controls(app.current_screen, viewport_size, ["%DeckSelector", "%Difficulty", "%Filters", "%Catalog", "%DeckPanel", "%PlayButton"])
+	_check(app.current_screen != null, "Title is instantiated")
+	_check_controls(app.current_screen, viewport_size, ["%StartButton", "%HowToPlayButton", "%DeckEditorButton"])
 
-	var complete_deck: Dictionary = app.current_screen.selected_deck()
+	var complete_deck: Dictionary = app.catalog.decks_by_id["us-starter"].duplicate(true)
 	app.selected_deck_id = str(complete_deck.get("id", ""))
 	app.selected_player_deck = complete_deck.duplicate(true)
 	app.start_mulligan(complete_deck, "easy", 440)
@@ -74,9 +75,8 @@ func _run_complete_flow(viewport_size: Vector2i) -> void:
 	await _frames(1)
 	app.current_screen.deck_builder_requested.emit()
 	await _frames(2)
-	_check_controls(app.current_screen, viewport_size, ["%DeckSelector", "%Difficulty", "%PlayButton"])
-	_check(app.selected_deck_id == str(complete_deck.id) and app.difficulty == "easy", "Deck Builder return preserves preference")
-	_check(app.current_screen.selected_deck() == complete_deck, "Deck Builder restores complete in-memory deck")
+	_check_controls(app.current_screen, viewport_size, ["%StartButton", "%HowToPlayButton", "%DeckEditorButton"])
+	_check(app.selected_deck_id == str(complete_deck.id) and app.difficulty == "easy", "Home return preserves preference")
 	app.queue_free()
 	await _frames(3)
 
@@ -110,7 +110,7 @@ func _check_rendered_perspective(view: Control, match_controller) -> void:
 		private_values.append(str(card.title))
 	var rendered_hand: Array = view.snapshot.get("players", {}).get("opponent", {}).get("hand", [])
 	_check(rendered_hand.size() == match_controller.state.players.opponent.hand.size(), "rendered hidden hand count is exact")
-	_check("Hand %d" % rendered_hand.size() in view.get_node("%OpponentLabel").text, "visible opponent hand count is exact")
+	_check("%s %d" % [LocaleScript.ui("status.hand"), rendered_hand.size()] in view.get_node("%OpponentLabel").text, "visible opponent hand count is exact")
 	for card_value in rendered_hand:
 		_check(card_value == {"hidden": true}, "rendered hidden card contains no private identity")
 	var rendered_text := _node_text(view)
