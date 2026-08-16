@@ -210,8 +210,10 @@ func render_snapshot(next_snapshot: Dictionary) -> void:
 	_style_turn_chip(active_player_id == "player" and str(snapshot.get("phase", "")).to_lower() == "action")
 	%OpponentLabel.text = _status_strip(opponent, false)
 	%OpponentLabel.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	%OpponentLabel.add_theme_font_size_override("font_size", 16)
 	%PlayerLabel.text = _status_strip(player, true)
 	%PlayerLabel.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	%PlayerLabel.add_theme_font_size_override("font_size", 16)
 	%CreditLabel.text = "%s %d / %d" % [LocaleScript.ui("status.credit"), int(player.get("credit", 0)), int(player.get("credit_slots", 0))]
 	_update_lane_chips()
 	%OpponentSupport.render(opponent.get("support_line", []), false, _resolve_card_view)
@@ -433,7 +435,7 @@ func _render_hand(cards: Array) -> void:
 		card.position = Vector2(transforms[index].pos.x + HAND_MARGIN, transforms[index].pos.y)
 		card.rotation_degrees = transforms[index].rot
 	%PlayerHand.custom_minimum_size = Vector2(_hand_layout_width(visible_cards.size()), 182.0)
-	_apply_hand_states()
+	_apply_card_states()
 
 func _resolve_card_view(card_data: Dictionary, mode: String):
 	var instance_id := str(card_data.get("instance_id", ""))
@@ -580,7 +582,7 @@ func _refresh_highlights() -> void:
 	%PlayerHQ.set_highlight(str(%PlayerHQ.card_data.get("instance_id", "")) in targets)
 	%ConfirmButton.disabled = _input_locked or not model.can_confirm()
 	%CancelButton.disabled = _input_locked or model.selected_source_id.is_empty()
-	_apply_hand_states()
+	_apply_card_states()
 	_refresh_end_turn_state()
 	_refresh_coach_objective()
 
@@ -624,19 +626,39 @@ func _refresh_coach_objective() -> void:
 		_pulse_coach()
 
 
-func _apply_hand_states() -> void:
+func _apply_card_states() -> void:
 	var legal_ids: Array = _coach_state.get("legal_source_ids", [])
 	var reasons: Dictionary = _coach_state.get("source_reasons", {})
 	for child in %PlayerHand.get_children():
-		var instance_id := str(child.card_data.get("instance_id", ""))
-		if instance_id == model.selected_source_id:
-			child.set_action_state("selected")
-		elif instance_id in legal_ids:
-			child.set_action_state("legal")
-		elif reasons.has(instance_id):
-			child.set_action_state("unavailable", str(reasons[instance_id]))
-		else:
-			child.set_action_state("normal")
+		_apply_source_state(child, legal_ids, reasons)
+	for zone in [%OpponentSupport, %Frontline, %PlayerSupport]:
+		for card in zone.card_views():
+			_apply_source_state(card, legal_ids, reasons)
+			card.set_duty_caption(_duty_caption(card.card_data))
+
+
+func _apply_source_state(card, legal_ids: Array, reasons: Dictionary) -> void:
+	var instance_id := str(card.card_data.get("instance_id", ""))
+	if instance_id == model.selected_source_id:
+		card.set_action_state("selected")
+	elif instance_id in legal_ids:
+		card.set_action_state("legal")
+	elif reasons.has(instance_id):
+		card.set_action_state("unavailable", str(reasons[instance_id]))
+	else:
+		card.set_action_state("normal")
+
+
+func _duty_caption(card: Dictionary) -> String:
+	if str(card.get("category", "")) != "Unit":
+		return ""
+	if MatchCoachModelScript._just_deployed(card, snapshot):
+		return LocaleScript.ui("duty.deployed")
+	if MatchCoachModelScript._operations_spent(card):
+		return LocaleScript.ui("duty.spent")
+	if int(card.get("operations_used", 0)) > 0:
+		return LocaleScript.ui("duty.ready_more")
+	return LocaleScript.ui("duty.ready")
 
 
 func _clear_rejection() -> void:
@@ -672,7 +694,7 @@ func _bind_chrome() -> void:
 
 func _status_strip(side: Dictionary, include_discard: bool) -> String:
 	var parts: PackedStringArray = PackedStringArray([
-		"%s %d" % [LocaleScript.ui("status.hq"), int(side.get("hq_defense", 0))],
+		"● %s %d" % [LocaleScript.ui("status.hq"), int(side.get("hq_defense", 0))],
 		"%s %d" % [LocaleScript.ui("status.hand"), (side.get("hand", []) as Array).size()],
 		"%s %d" % [LocaleScript.ui("status.deck"), int(side.get("deck_count", 0))],
 	])

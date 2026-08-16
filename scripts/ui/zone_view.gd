@@ -109,6 +109,14 @@ func _layout_slots() -> void:
 			card.position = Vector2.ZERO
 			card.size = slot.size
 
+func card_views() -> Array:
+	var cards: Array = []
+	for slot in _drop_slots():
+		if slot.get_child_count() > 0 and slot.get_child(0) is CardView:
+			cards.append(slot.get_child(0))
+	return cards
+
+
 func _drop_slots() -> Array:
 	var slots: Array = []
 	for child in get_children():

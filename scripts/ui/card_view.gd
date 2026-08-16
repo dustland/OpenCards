@@ -242,11 +242,13 @@ func _apply_mode_layout() -> void:
 			_set_rect(stats, 44, 128, 104, 149)
 			_set_rect(category_strip, 0, 0, 3, 154)
 		"battlefield":
-			type.visible = false
+			type.visible = true
+			type.add_theme_font_size_override("font_size", 8)
 			get_node("Frame/Costs/Deployment").visible = false
 			costs.add_theme_constant_override("separation", 2)
 			stats.add_theme_constant_override("separation", 3)
-			_set_rect(title, 4, 2, 96, 35)
+			_set_rect(title, 4, 2, 62, 35)
+			_set_rect(type, 64, 2, 96, 35)
 			_set_rect(title_banner, 2, 1, 94, 34)
 			_set_rect(artwork, 4, 38, 96, 79)
 			_set_rect(artwork_trim, 4, 38, 96, 79)
@@ -335,6 +337,16 @@ func _inspect_text(data: Dictionary) -> String:
 	for keyword in data.get("keywords", []):
 		lines.append(LocaleScript.keyword(str(keyword)))
 	return "\n".join(lines)
+
+
+func set_duty_caption(text: String) -> void:
+	if mode != "battlefield":
+		return
+	var type := get_node("Frame/Type") as Label
+	type.visible = not text.is_empty()
+	type.text = text
+	type.add_theme_font_size_override("font_size", 8)
+	type.add_theme_color_override("font_color", Color("e8d9a4"))
 
 
 func _start_legal_pulse() -> void:
