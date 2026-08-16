@@ -110,14 +110,21 @@ func _get_drag_data(_at_position: Vector2) -> Variant:
 	var instance_id := _instance_id()
 	card_drag_started.emit(instance_id)
 	if is_inside_tree():
-		var preview := Label.new()
-		preview.text = str(card_data.get("title", "Card"))
+		var preview := duplicate() as Control
+		preview.rotation_degrees = 0.0
+		preview.scale = Vector2(0.92, 0.92)
+		preview.modulate.a = 0.92
+		preview.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		set_drag_preview(preview)
 	return {"instance_id": instance_id}
 
 
 func _can_drop_data(_at_position: Vector2, data: Variant) -> bool:
-	return data is Dictionary and not str(data.get("instance_id", "")).is_empty()
+	if not (data is Dictionary and not str(data.get("instance_id", "")).is_empty()):
+		return false
+	if has_meta("can_receive_drop"):
+		return bool(get_meta("can_receive_drop"))
+	return true
 
 
 func _drop_data(_at_position: Vector2, data: Variant) -> void:

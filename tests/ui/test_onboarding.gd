@@ -36,6 +36,8 @@ static func run(t) -> void:
 	await _test_match_coach_and_card_states(t)
 	await _test_board_unit_duty_states(t)
 	await _test_guard_links_and_timeline_report(t)
+	await _test_aim_arrow_and_dual_play(t)
+	await _test_hand_fan_is_uncropped(t)
 	await _test_rejection_refresh_ordering(t)
 	await _test_end_turn_semantic_states(t)
 	await _test_unavailable_card_does_not_submit(t)
@@ -227,6 +229,60 @@ static func _test_guard_links_and_timeline_report(t) -> void:
 	t.assert_true(LocaleScript.ui("event.damage_dealt") in lines[1] and "3" in lines[1], "damage report includes the amount")
 	view.queue_free()
 	await Engine.get_main_loop().process_frame
+
+
+static func _test_aim_arrow_and_dual_play(t) -> void:
+	var view = MatchViewScene.instantiate()
+	Engine.get_main_loop().root.add_child(view)
+	Engine.get_main_loop().root.size = Vector2i(1280, 720)
+	view.render_snapshot(_snapshot())
+	view.set_legal_actions([_action("deploy_unit", "one-cost", [], {"support_slot": 0}), _action("end_turn")])
+	await view.get_tree().process_frame
+	view._on_card_pressed("one-cost")
+	t.assert_eq(view.model.selected_source_id, "one-cost", "click selects the source card")
+	t.assert_true(view.is_processing(), "two-click aiming tracks the mouse")
+	t.assert_true(0 in view.model.highlighted_slots("support"), "legal drop slots highlight after click")
+	t.assert_true(view._aim_source_point() != Vector2.ZERO, "aim arrow has a source point")
+	view.model.cancel()
+	view._refresh_coach()
+	view._on_card_drag_started("one-cost")
+	t.assert_eq(view.model.selected_source_id, "one-cost", "drag start selects the same source")
+	t.assert_true(0 in view.model.highlighted_slots("support"), "legal drop slots highlight during drag")
+	var slot := view.get_node("%PlayerSupport").get_child(0)
+	var other := view.get_node("%PlayerSupport").get_child(1)
+	t.assert_true(slot._can_drop_data(Vector2.ZERO, {"instance_id": "one-cost"}), "legal slot accepts the dragged card")
+	t.assert_true(not other._can_drop_data(Vector2.ZERO, {"instance_id": "one-cost"}), "unhighlighted slot rejects the drop")
+	view.queue_free()
+	await Engine.get_main_loop().process_frame
+
+
+static func _test_hand_fan_is_uncropped(t) -> void:
+	var view = MatchViewScene.instantiate()
+	Engine.get_main_loop().root.add_child(view)
+	Engine.get_main_loop().root.size = Vector2i(1280, 720)
+	view.render_snapshot(_match_hand_snapshot(5))
+	await view.get_tree().process_frame
+	await view.get_tree().process_frame
+	var hand := view.get_node("%PlayerHand") as Control
+	var scroll := view.get_node("%HandScroll") as Control
+	t.assert_true(not scroll.clip_contents, "hand scroll does not clip the fan")
+	t.assert_true(hand.custom_minimum_size.y >= 200.0, "hand reserves height for the curve")
+	t.assert_true(scroll.custom_minimum_size.y >= 200.0, "hand viewport is tall enough for the fan")
+	for card in hand.get_children():
+		var bottom := (card as Control).position.y + (card as Control).size.y
+		t.assert_true(bottom <= hand.custom_minimum_size.y + 0.5, "hand card stays inside the fan height")
+		t.assert_true((card as Control).position.y >= 0.0, "hand card is not pushed above the fan")
+	view.queue_free()
+	await Engine.get_main_loop().process_frame
+
+
+static func _match_hand_snapshot(hand_count: int) -> Dictionary:
+	var snapshot := _snapshot()
+	var hand: Array = []
+	for index in range(hand_count):
+		hand.append({"instance_id": "fan-%d" % index, "title": "Rifle Platoon", "category": "Unit", "owner_id": "player"})
+	snapshot.players.player.hand = hand
+	return snapshot
 
 
 static func _test_rejection_refresh_ordering(t) -> void:

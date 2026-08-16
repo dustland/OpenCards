@@ -331,16 +331,18 @@ vertical_alignment = 1
 
 [node name="HandScroll" type="ScrollContainer" parent="Margin/Columns/Board/HandArea"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 166)
+custom_minimum_size = Vector2(0, 214)
 layout_mode = 2
 size_flags_horizontal = 3
+clip_contents = false
 horizontal_scroll_mode = 2
 vertical_scroll_mode = 0
 [node name="PlayerHand" type="Control" parent="Margin/Columns/Board/HandArea/HandScroll"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-custom_minimum_size = Vector2(0, 166)
+clip_contents = false
+custom_minimum_size = Vector2(0, 214)
 
 [node name="PlayerPiles" type="VBoxContainer" parent="Margin/Columns/Board/HandArea"]
 custom_minimum_size = Vector2(52, 0)

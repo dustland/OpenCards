@@ -172,10 +172,15 @@ func _apply_highlights() -> void:
 		var highlighted := index in highlighted_slots
 		var style := _slot_style(zone_name)
 		if highlighted:
+			style.bg_color = Color(0.28, 0.24, 0.10, 0.78)
 			style.border_color = Color("f0cf55")
 			style.set_border_width_all(4)
+		var hover := style.duplicate()
+		if highlighted:
+			hover.bg_color = Color(0.38, 0.32, 0.12, 0.9)
+			hover.border_color = Color("ffe08a")
 		slot.add_theme_stylebox_override("normal", style)
-		slot.add_theme_stylebox_override("hover", style)
+		slot.add_theme_stylebox_override("hover", hover)
 		slot.add_theme_stylebox_override("disabled", style)
 		slot.modulate = Color.WHITE
 		if slot.get_child_count() > 0:
@@ -190,7 +195,10 @@ class _DropSlot:
 	var slot_index := -1
 	var input_locked := false
 	func _can_drop_data(_position: Vector2, data: Variant) -> bool:
-		return not input_locked and data is Dictionary and not str(data.get("instance_id", "")).is_empty()
+		if input_locked or not (data is Dictionary) or str(data.get("instance_id", "")).is_empty():
+			return false
+		var zone := get_parent() as ZoneView
+		return zone != null and slot_index in zone.highlighted_slots
 	func _drop_data(_position: Vector2, data: Variant) -> void:
 		if _can_drop_data(_position, data):
 			card_dropped.emit(str(data.instance_id))

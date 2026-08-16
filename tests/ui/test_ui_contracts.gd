@@ -477,7 +477,7 @@ static func _test_card_visual_badges_fan_hover_and_ghost(t) -> void:
 	t.assert_eq(card.scale, Vector2.ONE, "hover exit restores hand card scale")
 	card.free()
 
-	# Hand fan: edge cards rotate opposite ways and the arc dips at the edges.
+	# Hand fan: edge cards rotate opposite ways and the center sits lower.
 	var view = MatchViewScene.instantiate()
 	Engine.get_main_loop().root.add_child(view)
 	view.render_snapshot(_match_snapshot(3))

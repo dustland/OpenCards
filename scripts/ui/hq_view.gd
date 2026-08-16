@@ -53,7 +53,11 @@ func _pressed() -> void:
 
 
 func _can_drop_data(_at_position: Vector2, data: Variant) -> bool:
-	return data is Dictionary and not str(data.get("instance_id", "")).is_empty()
+	if not (data is Dictionary and not str(data.get("instance_id", "")).is_empty()):
+		return false
+	if has_meta("can_receive_drop"):
+		return bool(get_meta("can_receive_drop"))
+	return true
 
 
 func _drop_data(_at_position: Vector2, data: Variant) -> void:

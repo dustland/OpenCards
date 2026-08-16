@@ -25,6 +25,7 @@ var _inspect_panel: PanelContainer
 var _last_layout_size := Vector2.ZERO
 var _card_titles: Dictionary = {}
 var _guard_segments: Array = []
+var _aim_legal := false
 
 signal how_to_play_requested
 
@@ -171,7 +172,8 @@ func _apply_responsive_layout() -> void:
 	var size_changed := not size.is_equal_approx(_last_layout_size)
 	_last_layout_size = size
 	%TimelinePanel.custom_minimum_size.x = 120.0 if compact else 148.0
-	%HandScroll.custom_minimum_size.y = 158.0 if compact else 178.0
+	%HandScroll.clip_contents = false
+	%HandScroll.custom_minimum_size.y = 200.0 if compact else HAND_AREA_HEIGHT
 	var row_height := 112.0 if compact else 118.0
 	for path in ["Margin/Columns/Board/OpponentArea", "Margin/Columns/Board/Frontline", "Margin/Columns/Board/PlayerArea"]:
 		(get_node(path) as Control).custom_minimum_size.y = row_height
@@ -396,22 +398,24 @@ const HAND_CARD_WIDTH := 116.0
 const HAND_CARD_HEIGHT := 162.0
 const HAND_ADVANCE := 124.0
 const HAND_MAX_ROTATION := 9.0
-const HAND_ARC_DEPTH := 8.0
+const HAND_ARC_DEPTH := 16.0
 const HAND_MARGIN := 16.0
+const HAND_TOP_PAD := 14.0
+const HAND_BOTTOM_PAD := 22.0
+const HAND_AREA_HEIGHT := HAND_TOP_PAD + HAND_CARD_HEIGHT + HAND_ARC_DEPTH + HAND_BOTTOM_PAD
 
 
-# Kards-style hand fan: cards rotate from -10deg to +10deg and dip at the
-# edges. Both the live view and the motion snapshot rects use this layout so
-# animation start/end positions always match what the player sees.
+# Kards-style hand fan: cards rotate from -9deg to +9deg and the center sits
+# lower than the edges. Live view and motion snapshot rects share this layout.
 func _hand_layout(count: int) -> Array:
 	var transforms := []
 	for index in range(count):
 		var t := 0.5 if count <= 1 else float(index) / float(count - 1)
 		var center_offset := (2.0 * t - 1.0)
 		var rotation_deg := HAND_MAX_ROTATION * center_offset
-		var arc := HAND_ARC_DEPTH * center_offset * center_offset
+		var sag := HAND_ARC_DEPTH * (1.0 - center_offset * center_offset)
 		transforms.append({
-			"pos": Vector2(index * HAND_ADVANCE, arc),
+			"pos": Vector2(index * HAND_ADVANCE, HAND_TOP_PAD + sag),
 			"rot": rotation_deg,
 		})
 	return transforms
@@ -439,7 +443,7 @@ func _render_hand(cards: Array) -> void:
 		card.pivot_offset = Vector2(HAND_CARD_WIDTH, HAND_CARD_HEIGHT) * 0.5
 		card.position = Vector2(transforms[index].pos.x + HAND_MARGIN, transforms[index].pos.y)
 		card.rotation_degrees = transforms[index].rot
-	%PlayerHand.custom_minimum_size = Vector2(_hand_layout_width(visible_cards.size()), 182.0)
+	%PlayerHand.custom_minimum_size = Vector2(_hand_layout_width(visible_cards.size()), HAND_AREA_HEIGHT)
 	_apply_card_states()
 
 func _resolve_card_view(card_data: Dictionary, mode: String):
@@ -450,6 +454,7 @@ func _resolve_card_view(card_data: Dictionary, mode: String):
 		_card_registry[instance_id] = card
 		card.card_pressed.connect(_on_registered_card_pressed.bind(card))
 		card.card_dropped.connect(_on_registered_card_dropped.bind(card))
+		card.card_drag_started.connect(_on_card_drag_started)
 	card.bind(card_data, mode)
 	return card
 
@@ -490,6 +495,21 @@ func _on_card_pressed(instance_id: String) -> void:
 	model.select_source(instance_id)
 	var action = model.immediate_action()
 	if action != null: action_requested.emit(action)
+	%StatusLabel.text = ""
+	_refresh_coach()
+
+
+func _on_card_drag_started(instance_id: String) -> void:
+	if _reject_locked(): return
+	_clear_rejection()
+	var reason := str(_coach_state.get("source_reasons", {}).get(instance_id, ""))
+	if not reason.is_empty():
+		model.cancel()
+		model.status_message = reason
+		%StatusLabel.text = reason
+		_refresh_coach()
+		return
+	model.select_source(instance_id)
 	%StatusLabel.text = ""
 	_refresh_coach()
 
@@ -585,11 +605,14 @@ func _refresh_highlights() -> void:
 	%PlayerSupport.set_highlights(model.highlighted_slots("support"), targets)
 	%OpponentHQ.set_highlight(str(%OpponentHQ.card_data.get("instance_id", "")) in targets)
 	%PlayerHQ.set_highlight(str(%PlayerHQ.card_data.get("instance_id", "")) in targets)
+	%OpponentHQ.set_meta("can_receive_drop", str(%OpponentHQ.card_data.get("instance_id", "")) in targets)
+	%PlayerHQ.set_meta("can_receive_drop", str(%PlayerHQ.card_data.get("instance_id", "")) in targets)
 	%ConfirmButton.disabled = _input_locked or not model.can_confirm()
 	%CancelButton.disabled = _input_locked or model.selected_source_id.is_empty()
 	_apply_card_states()
 	_refresh_end_turn_state()
 	_refresh_coach_objective()
+	_sync_aiming()
 
 
 func _refresh_coach() -> void:
@@ -652,6 +675,7 @@ func _apply_source_state(card, legal_ids: Array, reasons: Dictionary) -> void:
 		card.set_action_state("unavailable", str(reasons[instance_id]))
 	else:
 		card.set_action_state("normal")
+	card.set_meta("can_receive_drop", instance_id in model.highlighted_targets())
 
 
 func _duty_caption(card: Dictionary) -> String:
@@ -760,6 +784,79 @@ func _draw() -> void:
 		draw_line(from, to, color, 2.2, true)
 		draw_circle(from, 3.2, color)
 		draw_circle(to, 2.4, color)
+	_draw_aim_arrow()
+
+
+func _sync_aiming() -> void:
+	var aiming := not model.selected_source_id.is_empty() and not _input_locked
+	set_process(aiming)
+	if not aiming:
+		_aim_legal = false
+		queue_redraw()
+
+
+func _process(_delta: float) -> void:
+	if model.selected_source_id.is_empty() or _input_locked:
+		_aim_legal = false
+		set_process(false)
+		queue_redraw()
+		return
+	_aim_legal = _legal_destination_under_mouse()
+	queue_redraw()
+
+
+func _aim_source_point() -> Vector2:
+	var card = card_view(model.selected_source_id)
+	if card != null and is_instance_valid(card) and card.is_visible_in_tree():
+		return _to_link_space(card.get_global_rect().get_center())
+	for hq in [%PlayerHQ, %OpponentHQ]:
+		if str(hq.card_data.get("instance_id", "")) == model.selected_source_id:
+			return _to_link_space(hq.get_global_rect().get_center())
+	return Vector2.ZERO
+
+
+func _legal_destination_under_mouse() -> bool:
+	var hovered := get_viewport().gui_get_hovered_control()
+	while hovered != null:
+		if hovered is HqView:
+			return str((hovered as HqView).card_data.get("instance_id", "")) in model.highlighted_targets()
+		if hovered is CardView:
+			return str((hovered as CardView).card_data.get("instance_id", "")) in model.highlighted_targets()
+		if hovered.get_parent() is ZoneView and "slot_index" in hovered:
+			return int(hovered.slot_index) in model.highlighted_slots(str((hovered.get_parent() as ZoneView).zone_name))
+		hovered = hovered.get_parent() as Control
+	return false
+
+
+func _draw_aim_arrow() -> void:
+	if model.selected_source_id.is_empty() or _input_locked:
+		return
+	var from := _aim_source_point()
+	var to := _to_link_space(get_global_mouse_position())
+	if from == Vector2.ZERO or from.distance_to(to) < 18.0:
+		return
+	var color := Color(0.96, 0.84, 0.38, 0.96) if _aim_legal else Color(0.86, 0.74, 0.42, 0.78)
+	var mid := (from + to) * 0.5
+	var along := to - from
+	var lift := Vector2(-along.y, along.x).normalized() * minf(48.0, along.length() * 0.22)
+	if lift.y > 0.0:
+		lift = -lift
+	var ctrl := mid + lift
+	var points := PackedVector2Array()
+	for step in range(17):
+		var t := float(step) / 16.0
+		var inv := 1.0 - t
+		points.append(from * inv * inv + ctrl * 2.0 * inv * t + to * t * t)
+	draw_polyline(points, Color(0.08, 0.07, 0.04, 0.45), 5.2, true)
+	draw_polyline(points, color, 3.1, true)
+	var tip_dir := (to - points[14]).normalized()
+	var head := PackedVector2Array([
+		to,
+		to - tip_dir.rotated(0.48) * 16.0,
+		to - tip_dir.rotated(-0.48) * 16.0,
+	])
+	draw_colored_polygon(head, color)
+	draw_circle(from, 4.0, color)
 
 
 func _collect_guard_segments(zone, hq, segments: Array) -> void:
