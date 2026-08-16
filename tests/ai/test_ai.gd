@@ -37,6 +37,7 @@ static func run(t) -> void:
 	_test_evaluator_respects_information_boundary(t)
 	_test_evaluator_handles_malformed_snapshots(t)
 	_test_evaluator_requires_exact_player_map(t)
+	_test_ai_does_not_flip_flop_countermeasures(t)
 
 
 static func _test_ai_player_factory_normalizes_difficulties(t) -> void:
@@ -474,6 +475,43 @@ static func _test_evaluator_requires_exact_player_map(t) -> void:
 	t.assert_eq(BoardEvaluator.score({
 		"players": {"player": player, "opponent": []},
 	}, "player"), 0.0, "wrong expected player entry is neutral")
+
+
+static func _test_ai_does_not_flip_flop_countermeasures(t) -> void:
+	var controller := _countermeasure_only_controller(740)
+	var first := AIPlayer.create("standard", 11).choose_action(controller, "player")
+	t.assert_eq(first.type, "toggle_countermeasure", "AI arms a Countermeasure when that is the only improvement")
+	t.assert_true(controller.submit_action(first).accepted, "arming the Countermeasure is legal")
+	t.assert_true(controller.state.players.player.hand[0].countermeasure_active, "Countermeasure stays active after the first choice")
+	var second := AIPlayer.create("standard", 11).choose_action(controller, "player")
+	t.assert_eq(second.type, "end_turn", "AI does not immediately disarm the Countermeasure it just armed")
+	var seen := {}
+	for seed in range(1, 9):
+		var loop_controller := _countermeasure_only_controller(741)
+		var previous := ""
+		for _step in range(4):
+			var action := AIPlayer.create("standard", seed).choose_action(loop_controller, "player")
+			var key := "%s:%s" % [action.type, action.source_id]
+			if previous == "toggle_countermeasure:signal" and key == "toggle_countermeasure:signal":
+				t.assert_true(false, "AI reversed the same Countermeasure")
+			previous = key
+			t.assert_true(loop_controller.submit_action(action).accepted, "loop-guard actions stay legal")
+			if action.type == "end_turn":
+				break
+		seen[true] = true
+	t.assert_true(seen.has(true), "flip-flop guard exercised multiple seeds")
+
+
+static func _countermeasure_only_controller(seed: int) -> MatchController:
+	var definitions := {
+		"p-hq": _definition("p-hq", "Headquarters", 0, 20),
+		"o-hq": _definition("o-hq", "Headquarters", 0, 20),
+		"signal": _definition("signal", "Countermeasure", 0, 0, 1),
+	}
+	var controller := _empty_action_controller_with_definitions(definitions, seed)
+	controller.state.players.player.credit = 3
+	_put_hand(controller, _card(definitions, "signal", "player", "signal"))
+	return controller
 
 
 static func _rich_controller(seed: int) -> MatchController:

@@ -235,10 +235,27 @@ func _validation_workspace_for(controller, actor_id: String):
 
 
 func _generate_actions(controller, actor_id: String) -> Array[GameAction]:
-	var actions: Array[GameAction] = ActionGenerator.generate(controller, actor_id, false)
+	var snapshot := _snapshot_for(controller, actor_id)
+	var actions: Array[GameAction] = []
+	for action in ActionGenerator.generate(controller, actor_id, false):
+		if _is_countermeasure_deactivation(snapshot, actor_id, action):
+			continue
+		actions.append(action)
 	search_metrics["action_lists"] = int(search_metrics.get("action_lists", 0)) + 1
 	search_metrics["candidate_actions"] = int(search_metrics.get("candidate_actions", 0)) + actions.size()
 	return actions
+
+
+func _is_countermeasure_deactivation(snapshot: Dictionary, actor_id: String, action: GameAction) -> bool:
+	if action.type != "toggle_countermeasure":
+		return false
+	var me: Variant = snapshot.get("players", {}).get(actor_id, {})
+	if not (me is Dictionary):
+		return false
+	for card_value in (me as Dictionary).get("hand", []):
+		if card_value is Dictionary and str(card_value.get("instance_id", "")) == action.source_id:
+			return bool(card_value.get("countermeasure_active", false))
+	return false
 
 
 func _empty_search_metrics() -> Dictionary:

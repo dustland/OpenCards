@@ -25,7 +25,8 @@ static func score(snapshot: Variant, actor_id: String) -> float:
 		+ _unit_value(snapshot, me, actor_id) - _unit_value(snapshot, them, opponent_id) \
 		+ float(_hand_count(me) - _hand_count(them)) * 1.5 \
 		+ _frontline_value(snapshot, actor_id) \
-		+ (_number(me.get("credit", 0)) - _number(them.get("credit", 0))) * 0.25
+		+ (_number(me.get("credit", 0)) - _number(them.get("credit", 0))) * 0.25 \
+		+ _countermeasure_value(me) - _countermeasure_value(them)
 
 
 static func _hand_count(player: Dictionary) -> int:
@@ -53,6 +54,17 @@ static func _cards_value(cards: Variant) -> float:
 		var card: Dictionary = card_value
 		if str(card.get("category", "")) == "Unit":
 			value += _number(card.get("attack", 0)) + _number(card.get("defense", 0))
+	return value
+
+
+static func _countermeasure_value(player: Dictionary) -> float:
+	var hand: Variant = player.get("hand", [])
+	if not (hand is Array):
+		return 0.0
+	var value := 0.0
+	for card_value in hand:
+		if card_value is Dictionary and bool(card_value.get("countermeasure_active", false)):
+			value += 2.0
 	return value
 
 

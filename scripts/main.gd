@@ -324,6 +324,7 @@ func start_match_turn_flow() -> void:
 func _drive_ai_turn(generation: int) -> void:
 	var actions_this_turn := 0
 	var last_sequence := controller.state.sequence
+	var last_toggle_id := ""
 	while generation == _match_generation and controller != null \
 			and controller.state.phase == "action" and controller.state.active_player_id == "opponent":
 		if actions_this_turn >= 64:
@@ -331,6 +332,9 @@ func _drive_ai_turn(generation: int) -> void:
 			_route_match_result_if_complete()
 			return
 		var action = ai.choose_action(controller, "opponent")
+		if action != null and action.type == "toggle_countermeasure" and action.source_id == last_toggle_id:
+			var legal_end_turn = controller.legal_actions("opponent").filter(func(candidate) -> bool: return candidate.type == "end_turn")
+			action = legal_end_turn[0] if not legal_end_turn.is_empty() else GameActionScript.create("end_turn", "opponent")
 		if action == null or action.type.is_empty():
 			var legal_end_turn = controller.legal_actions("opponent").filter(func(candidate) -> bool: return candidate.type == "end_turn")
 			if legal_end_turn.is_empty():
@@ -353,6 +357,7 @@ func _drive_ai_turn(generation: int) -> void:
 			_route_match_result_if_complete()
 			return
 		last_sequence = controller.state.sequence
+		last_toggle_id = action.source_id if action.type == "toggle_countermeasure" else ""
 		actions_this_turn += 1
 		if _route_match_result_if_complete():
 			return
