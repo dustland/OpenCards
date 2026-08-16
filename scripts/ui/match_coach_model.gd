@@ -117,7 +117,54 @@ static func _source_reasons(snapshot: Dictionary, actions_by_source: Dictionary)
 			reasons[source_id] = LocaleScript.ui("reason.no_target")
 		else:
 			reasons[source_id] = LocaleScript.ui("reason.none")
+	for card in _player_board_units(snapshot):
+		var source_id := str(card.get("instance_id", ""))
+		if source_id.is_empty() or actions_by_source.has(source_id) or reasons.has(source_id):
+			continue
+		if not is_player_turn:
+			reasons[source_id] = LocaleScript.ui("reason.wait")
+		elif _just_deployed(card, snapshot):
+			reasons[source_id] = LocaleScript.ui("reason.sickness")
+		elif _operations_spent(card):
+			reasons[source_id] = LocaleScript.ui("reason.acted")
+		elif int(card.get("operation_cost", 0)) > int(player.get("credit", 0)):
+			reasons[source_id] = LocaleScript.ui("reason.credit")
+		else:
+			reasons[source_id] = LocaleScript.ui("reason.none")
 	return reasons
+
+
+static func _player_board_units(snapshot: Dictionary) -> Array:
+	var units: Array = []
+	var player := _player(snapshot)
+	for slot in player.get("support_line", []):
+		if slot is Dictionary:
+			units.append(slot)
+	for slot in snapshot.get("frontline", []):
+		if slot is Dictionary and str(slot.get("owner_id", "")) == "player":
+			units.append(slot)
+	return units
+
+
+static func _just_deployed(card: Dictionary, snapshot: Dictionary) -> bool:
+	if int(card.get("deployed_turn", -1)) != int(snapshot.get("turn", -2)):
+		return false
+	for keyword in card.get("keywords", []):
+		if str(keyword) == "Blitz":
+			return false
+	return true
+
+
+static func _operations_spent(card: Dictionary) -> bool:
+	var limit := 2 if _has_keyword(card, "Fury") else 1
+	return int(card.get("operations_used", 0)) >= limit
+
+
+static func _has_keyword(card: Dictionary, name: String) -> bool:
+	for keyword in card.get("keywords", []):
+		if str(keyword) == name:
+			return true
+	return false
 
 
 static func _support_is_full(value: Variant) -> bool:

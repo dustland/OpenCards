@@ -34,6 +34,8 @@ static func run(t) -> void:
 	await _test_deck_builder_edited_validation_and_restoration(t)
 	await _test_deck_builder_readiness_containment(t)
 	await _test_match_coach_and_card_states(t)
+	await _test_board_unit_duty_states(t)
+	await _test_guard_links_and_timeline_report(t)
 	await _test_rejection_refresh_ordering(t)
 	await _test_end_turn_semantic_states(t)
 	await _test_unavailable_card_does_not_submit(t)
@@ -161,6 +163,68 @@ static func _test_match_coach_and_card_states(t) -> void:
 	view.show_rejection("stale_action", "That action is no longer legal.")
 	t.assert_eq(view.get_node("%CoachObjective").text, "That action is no longer legal.", "rejection takes coach precedence")
 	t.assert_eq((view.get_node("%CoachObjective") as Control).size.y, objective_height, "rejection does not resize coach strip")
+	view.queue_free()
+	await Engine.get_main_loop().process_frame
+
+
+static func _test_board_unit_duty_states(t) -> void:
+	var view = MatchViewScene.instantiate()
+	Engine.get_main_loop().root.add_child(view)
+	Engine.get_main_loop().root.size = Vector2i(1280, 720)
+	var snapshot := _snapshot()
+	snapshot["turn"] = 3
+	snapshot.players.player.support_line = [
+		{"instance_id": "fresh-unit", "category": "Unit", "unit_type": "Infantry", "owner_id": "player", "deployed_turn": 3, "operations_used": 0, "operation_cost": 1},
+		{"instance_id": "spent-unit", "category": "Unit", "unit_type": "Infantry", "owner_id": "player", "deployed_turn": 1, "operations_used": 1, "operation_cost": 1},
+		{"instance_id": "ready-unit", "category": "Unit", "unit_type": "Infantry", "owner_id": "player", "deployed_turn": 1, "operations_used": 0, "operation_cost": 1},
+		null,
+	]
+	view.render_snapshot(snapshot)
+	view.set_legal_actions([_action("move_unit", "ready-unit", [], {"frontline_slot": 0}), _action("end_turn")])
+	await view.get_tree().process_frame
+	var cards: Array = view.get_node("%PlayerSupport").card_views()
+	t.assert_eq(cards.size(), 3, "support line exposes the three placed units")
+	if cards.size() == 3:
+		t.assert_eq(cards[0].action_state, "unavailable", "just-deployed unit is unavailable")
+		t.assert_true(cards[0].tooltip_text.begins_with(LocaleScript.ui("reason.sickness")), "just-deployed unit explains summoning sickness")
+		t.assert_eq(cards[0].get_node("Frame/Type").text, LocaleScript.ui("duty.deployed"), "just-deployed unit shows duty caption")
+		t.assert_eq(cards[1].action_state, "unavailable", "spent unit is unavailable")
+		t.assert_true(cards[1].tooltip_text.begins_with(LocaleScript.ui("reason.acted")), "spent unit explains it already operated")
+		t.assert_eq(cards[1].get_node("Frame/Type").text, LocaleScript.ui("duty.spent"), "spent unit shows duty caption")
+		t.assert_eq(cards[2].action_state, "legal", "ready unit is highlighted")
+		t.assert_eq(cards[2].get_node("Frame/Type").text, LocaleScript.ui("duty.ready"), "ready unit shows duty caption")
+	view.queue_free()
+	await Engine.get_main_loop().process_frame
+
+
+static func _test_guard_links_and_timeline_report(t) -> void:
+	var view = MatchViewScene.instantiate()
+	Engine.get_main_loop().root.add_child(view)
+	Engine.get_main_loop().root.size = Vector2i(1280, 720)
+	var snapshot := _snapshot()
+	snapshot.players.player.support_line = [
+		{"instance_id": "neighbor", "title": "Rifle Platoon", "category": "Unit", "owner_id": "player", "slot": 0, "keywords": []},
+		{"instance_id": "guard-unit", "title": "Guards Rifle Section", "category": "Unit", "owner_id": "player", "slot": 1, "keywords": ["Guard"]},
+		null,
+		null,
+	]
+	snapshot.players.player["headquarters"] = {"instance_id": "player-hq", "title": "US Command Post", "category": "Headquarters"}
+	view.render_snapshot(snapshot)
+	await view.get_tree().process_frame
+	await view.get_tree().process_frame
+	t.assert_true(view._guard_segments.size() >= 2, "Guard links HQ and the adjacent unit")
+	view.render_events([
+		{"type": "card_deployed", "player_id": "player", "instance_id": "guard-unit"},
+		{"type": "credit_spent", "player_id": "player"},
+		{"type": "damage_dealt", "player_id": "opponent", "damage": 3, "target_id": "neighbor"},
+	])
+	var lines: Array[String] = []
+	for child in view.get_node("%Timeline").get_children():
+		if child is Label:
+			lines.append(child.text)
+	t.assert_true(lines.size() == 2, "timeline report skips credit noise")
+	t.assert_true(LocaleScript.ui("event.card_deployed") in lines[0] and "Guards Rifle Section" in lines[0], "deploy report names the card")
+	t.assert_true(LocaleScript.ui("event.damage_dealt") in lines[1] and "3" in lines[1], "damage report includes the amount")
 	view.queue_free()
 	await Engine.get_main_loop().process_frame
 
