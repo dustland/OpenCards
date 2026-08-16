@@ -15,9 +15,10 @@ var _flash_tween: Tween
 
 func _ready() -> void:
 	custom_minimum_size = Vector2(108, 118)
-	clip_contents = true
+	clip_contents = false
 	mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	_apply_style(false)
+	_style_hp_badge()
 
 
 static func emblem_key(nation: String) -> String:
@@ -66,14 +67,31 @@ func _drop_data(_at_position: Vector2, data: Variant) -> void:
 
 
 func _apply_style(highlighted: bool) -> void:
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.07, 0.09, 0.08, 0.92) if not highlighted else Color(0.16, 0.14, 0.07, 0.95)
-	style.border_color = Color("e9c458") if highlighted else Color("6f7a6c")
-	style.set_border_width_all(3 if highlighted else 2)
-	style.set_corner_radius_all(8)
+	var style := BattlefieldChrome.plaque(
+		Color(0.07, 0.08, 0.06, 0.55) if not highlighted else Color(0.16, 0.14, 0.07, 0.72),
+		Color("e9c458") if highlighted else Color(0.58, 0.50, 0.32, 0.85),
+		3 if highlighted else 2,
+		8,
+		0
+	)
 	add_theme_stylebox_override("normal", style)
 	var hover: StyleBoxFlat = style.duplicate()
-	hover.border_color = Color("ffe08a") if highlighted else Color("8d9a8b")
+	hover.border_color = Color("ffe08a") if highlighted else Color(0.78, 0.68, 0.42, 0.95)
 	add_theme_stylebox_override("hover", hover)
 	add_theme_stylebox_override("pressed", hover)
 	add_theme_stylebox_override("disabled", style)
+	material = BattlefieldChrome.paper_material(0.10)
+	queue_redraw()
+
+
+func _style_hp_badge() -> void:
+	if not has_node("%HpBadge"):
+		return
+	var badge := BattlefieldChrome.plaque(Color(0.18, 0.14, 0.07, 0.92), Color("c4a45a"), 2, 12, 2)
+	badge.shadow_size = 3
+	%HpBadge.add_theme_stylebox_override("panel", badge)
+
+
+func _draw() -> void:
+	BattlefieldChrome.draw_rivets(self, Rect2(Vector2.ZERO, size), Color(0.78, 0.66, 0.38, 0.88), 8.0)
+	BattlefieldChrome.draw_corner_brackets(self, Rect2(Vector2(4, 4), size - Vector2(8, 8)), Color(0.72, 0.62, 0.38, 0.45), 12.0, 1.4)

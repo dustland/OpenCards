@@ -207,7 +207,7 @@ func _apply_mode_layout() -> void:
 	var title_banner := get_node("Frame/TitleBanner") as Control
 	var artwork_trim := get_node("Frame/ArtworkTrim") as Control
 	var rarity_pip := get_node("Frame/RarityPip") as Control
-	frame.clip_contents = true
+	frame.clip_contents = false
 	artwork.visible = mode != "hidden"
 	title.visible = mode != "hidden"
 	type.visible = mode != "hidden"

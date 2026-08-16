@@ -6,7 +6,7 @@
 custom_minimum_size = Vector2(108, 118)
 size_flags_horizontal = 4
 size_flags_vertical = 4
-clip_contents = true
+clip_contents = false
 script = ExtResource("1_hq_view")
 
 [node name="Emblem" type="TextureRect" parent="."]

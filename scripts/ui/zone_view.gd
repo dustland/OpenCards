@@ -79,21 +79,20 @@ func _notification(what: int) -> void:
 		queue_redraw()
 
 func _draw() -> void:
+	var grid_width: float = slot_width * grid_cell_count + slot_gap * (grid_cell_count - 1)
+	var left: float = floorf((size.x - grid_width) * 0.5)
+	if zone_name == "frontline":
+		draw_rect(Rect2(Vector2.ZERO, size), Color(0.10, 0.08, 0.05, 0.14), true)
+		BattlefieldChrome.draw_trench(self, Rect2(Vector2.ZERO, size))
+	for index in range(grid_cell_count):
+		var rect := Rect2(left + index * (slot_width + slot_gap), 0.0, slot_width, size.y)
+		var highlighted := index < slot_count and index in highlighted_slots
+		BattlefieldChrome.draw_slot_pad(self, rect, zone_name, highlighted)
 	if not lane_caption.is_empty():
 		var font := get_theme_default_font()
 		if font != null:
 			draw_string(font, Vector2(8, 14), lane_caption, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0.91, 0.88, 0.78, 0.95))
-	if slot_count >= grid_cell_count:
-		return
-	var grid_width: float = slot_width * grid_cell_count + slot_gap * (grid_cell_count - 1)
-	var left: float = floorf((size.x - grid_width) * 0.5)
-	for index in range(slot_count, grid_cell_count):
-		var rect := Rect2(left + index * (slot_width + slot_gap), 0.0, slot_width, size.y)
-		var unused := _slot_style(zone_name)
-		unused.bg_color.a = 0.18
-		unused.border_color = Color("4a5248")
-		unused.set_border_width_all(1)
-		unused.draw(get_canvas_item(), rect)
+			draw_line(Vector2(8, 17), Vector2(minf(size.x - 12.0, 168.0), 17), Color(0.72, 0.62, 0.38, 0.45), 1.0)
 
 func _layout_slots() -> void:
 	var grid_width: float = slot_width * grid_cell_count + slot_gap * (grid_cell_count - 1)
@@ -133,24 +132,7 @@ func grid_column_centers() -> Array[float]:
 	return result
 
 func _slot_style(zone: String) -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	var edge := Color("6f7a6c")
-	match zone:
-		"frontline":
-			style.bg_color = Color(0.185, 0.215, 0.195, 0.62)
-			edge = Color("7c8d84")
-		"opponent_support":
-			style.bg_color = Color(0.21, 0.185, 0.165, 0.62)
-			edge = Color("8a6b60")
-		_:
-			style.bg_color = Color(0.16, 0.195, 0.215, 0.62)
-			edge = Color("6d8496")
-	style.border_color = edge
-	style.set_border_width_all(2)
-	style.border_width_top = 2
-	style.border_width_bottom = 3
-	style.set_corner_radius_all(4)
-	return style
+	return BattlefieldChrome.slot_pad(zone, false)
 
 func set_input_locked(locked: bool) -> void:
 	input_locked = locked
@@ -170,14 +152,10 @@ func _apply_highlights() -> void:
 	for index in range(slots.size()):
 		var slot: _DropSlot = slots[index]
 		var highlighted := index in highlighted_slots
-		var style := _slot_style(zone_name)
+		var style := BattlefieldChrome.slot_pad(zone_name, highlighted)
+		var hover := BattlefieldChrome.slot_pad(zone_name, highlighted)
 		if highlighted:
-			style.bg_color = Color(0.28, 0.24, 0.10, 0.78)
-			style.border_color = Color("f0cf55")
-			style.set_border_width_all(4)
-		var hover := style.duplicate()
-		if highlighted:
-			hover.bg_color = Color(0.38, 0.32, 0.12, 0.9)
+			hover.bg_color = Color(0.36, 0.30, 0.10, 0.42)
 			hover.border_color = Color("ffe08a")
 		slot.add_theme_stylebox_override("normal", style)
 		slot.add_theme_stylebox_override("hover", hover)
@@ -187,6 +165,7 @@ func _apply_highlights() -> void:
 			var card = slot.get_child(0)
 			var owner_color := Color("b9d8e8") if str(card.get_meta("owner_id", "")) == "player" else Color("e8b9b9")
 			card.modulate = Color("f2d66d") if str(card.card_data.get("instance_id", "")) in highlighted_targets else owner_color
+	queue_redraw()
 
 class _DropSlot:
 	extends Button

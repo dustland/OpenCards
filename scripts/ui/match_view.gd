@@ -161,6 +161,7 @@ func _ready() -> void:
 	_install_lane_chrome()
 	_install_help_button()
 	_style_coach()
+	_style_table_chrome()
 	_bind_chrome()
 	_apply_responsive_layout()
 
@@ -401,7 +402,7 @@ const HAND_MAX_ROTATION := 9.0
 const HAND_ARC_DEPTH := 16.0
 const HAND_MARGIN := 16.0
 const HAND_TOP_PAD := 14.0
-const HAND_BOTTOM_PAD := 22.0
+const HAND_BOTTOM_PAD := 8.0
 const HAND_AREA_HEIGHT := HAND_TOP_PAD + HAND_CARD_HEIGHT + HAND_ARC_DEPTH + HAND_BOTTOM_PAD
 
 
@@ -635,11 +636,7 @@ func _refresh_end_turn_state() -> void:
 		%EndTurnButton.set_meta("action_state", "disabled")
 	elif bool(_coach_state.get("end_turn_only", false)):
 		%EndTurnButton.set_meta("action_state", "strong")
-		var style := StyleBoxFlat.new()
-		style.bg_color = Color("2b2d24")
-		style.border_color = Color("f0cf55")
-		style.set_border_width_all(3)
-		style.set_corner_radius_all(4)
+		var style := BattlefieldChrome.plaque(Color("2b2d24"), Color("f0cf55"), 3, 4, 8)
 		%EndTurnButton.add_theme_stylebox_override("normal", style)
 	else:
 		%EndTurnButton.set_meta("action_state", "normal")
@@ -733,8 +730,8 @@ func _status_strip(side: Dictionary, include_discard: bool) -> String:
 
 
 func _install_lane_chrome() -> void:
-	_attach_lane(get_node("Margin/Columns/Board/OpponentArea") as Control, Color(0.42, 0.18, 0.14, 0.22), "OpponentLaneChip", "zone.enemy_support")
-	_attach_lane(get_node("Margin/Columns/Board/PlayerArea") as Control, Color(0.16, 0.28, 0.38, 0.24), "PlayerLaneChip", "zone.player_support")
+	_attach_lane(get_node("Margin/Columns/Board/OpponentArea") as Control, Color(0.28, 0.12, 0.10, 0.18), "OpponentLaneChip", "zone.enemy_support")
+	_attach_lane(get_node("Margin/Columns/Board/PlayerArea") as Control, Color(0.10, 0.16, 0.20, 0.18), "PlayerLaneChip", "zone.player_support")
 
 
 func _remember_card_titles() -> void:
@@ -897,6 +894,7 @@ func _attach_lane(host: Control, tint: Color, chip_name: String, key: String) ->
 		band.name = "LaneBand"
 		band.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		band.color = tint
+		band.material = BattlefieldChrome.felt_material(0.08, 0.04)
 		band.set_anchors_preset(Control.PRESET_FULL_RECT)
 		host.add_child(band)
 		host.move_child(band, 0)
@@ -907,7 +905,9 @@ func _attach_lane(host: Control, tint: Color, chip_name: String, key: String) ->
 		chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		chip.add_theme_font_size_override("font_size", 12)
 		chip.add_theme_color_override("font_color", Color("e8e1d2"))
-		chip.position = Vector2(6, 2)
+		chip.add_theme_color_override("font_outline_color", Color(0.08, 0.07, 0.04, 0.85))
+		chip.add_theme_constant_override("outline_size", 3)
+		chip.position = Vector2(8, 2)
 		chip.z_index = 2
 		host.add_child(chip)
 	(host.get_node(chip_name) as Label).text = LocaleScript.ui(key)
@@ -940,16 +940,18 @@ func _install_help_button() -> void:
 	%TurnLabel.get_parent().add_child(help)
 
 
+func _style_table_chrome() -> void:
+	%TimelinePanel.material = BattlefieldChrome.paper_material(0.09)
+	for pile in [%OpponentDeckPile, %OpponentDiscardPile, %PlayerDeckPile, %PlayerDiscardPile]:
+		pile.material = BattlefieldChrome.paper_material(0.10)
+	%CreditLabel.add_theme_color_override("font_color", Color("f2dd9a"))
+
+
 func _style_coach() -> void:
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.16, 0.18, 0.12, 0.92)
-	style.border_color = Color("c4a45a")
-	style.set_border_width_all(2)
-	style.set_corner_radius_all(4)
-	style.content_margin_left = 10
-	style.content_margin_right = 10
+	var style := BattlefieldChrome.plaque(Color(0.16, 0.17, 0.12, 0.55), Color("c4a45a"), 2, 4, 10)
 	style.content_margin_top = 6
 	style.content_margin_bottom = 6
+	style.shadow_size = 0
 	%CoachObjective.add_theme_stylebox_override("normal", style)
 	%CoachObjective.add_theme_font_size_override("font_size", 16)
 	%CoachObjective.add_theme_color_override("font_color", Color("f2dd9a"))
