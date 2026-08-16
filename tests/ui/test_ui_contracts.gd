@@ -471,7 +471,7 @@ static func _test_card_visual_badges_fan_hover_and_ghost(t) -> void:
 	t.assert_true(card.get_node("Frame/Stats/Defense/BadgeDefense").texture != null, "defense badge art present")
 	t.assert_true(card.get_node("CardBack/BackTexture").texture != null, "card back uses generated texture")
 	# Hand hover lifts and restores.
-	var base_y := card.position.y
+	var base_y: float = card.position.y
 	card._set_hover_lift(true)
 	for frame in range(12): await Engine.get_main_loop().process_frame
 	t.assert_true(card.position.y < base_y, "hover lifts hand cards")
@@ -487,7 +487,7 @@ static func _test_card_visual_badges_fan_hover_and_ghost(t) -> void:
 	Engine.get_main_loop().root.add_child(view)
 	view.render_snapshot(_match_snapshot(3))
 	await Engine.get_main_loop().process_frame
-	var hand := view.get_node("%PlayerHand")
+	var hand: Control = view.get_node("%PlayerHand")
 	var first: Control = hand.get_child(0)
 	var middle: Control = hand.get_child(1)
 	var last: Control = hand.get_child(2)

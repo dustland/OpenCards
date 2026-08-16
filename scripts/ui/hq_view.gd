@@ -42,7 +42,7 @@ func set_highlight(highlighted: bool) -> void:
 func flash_damage() -> void:
 	if _flash_tween != null and _flash_tween.is_valid():
 		_flash_tween.kill()
-	var original := %Emblem.modulate
+	var original: Color = %Emblem.modulate
 	%Emblem.modulate = Color("ff6a52")
 	_flash_tween = create_tween()
 	_flash_tween.tween_property(%Emblem, "modulate", original, 0.32)
@@ -68,7 +68,7 @@ func _apply_style(highlighted: bool) -> void:
 	style.set_border_width_all(3 if highlighted else 2)
 	style.set_corner_radius_all(8)
 	add_theme_stylebox_override("normal", style)
-	var hover := style.duplicate()
+	var hover: StyleBoxFlat = style.duplicate()
 	hover.border_color = Color("ffe08a") if highlighted else Color("8d9a8b")
 	add_theme_stylebox_override("hover", hover)
 	add_theme_stylebox_override("pressed", hover)

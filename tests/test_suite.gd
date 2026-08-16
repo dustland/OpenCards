@@ -33,9 +33,17 @@ func _run() -> void:
 		suites = [UI_SUITE]
 	elif "--art-assets-only" in args:
 		suites = [ART_ASSET_SUITE]
+	var failures := 0
 	for suite in suites:
+		# A suite whose script failed to parse has no run(); report and keep
+		# going so quit() still fires (a stray runtime error would otherwise
+		# leave the headless process alive until the CI job timeout).
+		if suite == null or not suite.has_method("run"):
+			push_error("Test suite script failed to load: %s" % suite)
+			failures += 1
+			continue
 		await suite.run(test_case)
-	var failures := test_case.finish()
+	failures += test_case.finish()
 	await process_frame
 	await process_frame
 	if failures == 0:
