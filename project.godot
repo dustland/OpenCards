@@ -4,6 +4,10 @@ config_version=5
 [application]
 config/name="OpenCards"
 run/main_scene="res://scenes/main.tscn"
+boot_splash/bg_color=Color(0.05, 0.07, 0.06, 1)
+boot_splash/image="res://game_assets/ui/boot_splash.png"
+boot_splash/fullsize=true
+boot_splash/use_filter=true
 
 [display]
 window/size/viewport_width=1280

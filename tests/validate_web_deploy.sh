@@ -109,7 +109,9 @@ preset = File.read(preset_path)
   'variant/extensions_support=false' => "disabled GDExtensions",
   'variant/thread_support=false' => "disabled Web threads",
   'progressive_web_app/enabled=false' => "disabled PWA",
-  'progressive_web_app/ensure_cross_origin_isolation_headers=false' => "disabled cross-origin isolation headers"
+  'progressive_web_app/ensure_cross_origin_isolation_headers=false' => "disabled cross-origin isolation headers",
+  'res://game_assets/ui/fonts/ui_cjk.ttf' => "CJK UI font",
+  'res://game_assets/ui/boot_splash.png' => "boot splash"
 }.each do |text, description|
   fail_validation("export preset is missing #{description}") unless preset.include?(text)
 end

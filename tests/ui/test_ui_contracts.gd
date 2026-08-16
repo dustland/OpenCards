@@ -662,6 +662,15 @@ static func _test_theme_and_screen_contract(t) -> void:
 	var theme := ThemeFactory.create()
 	t.assert_true(theme.has_color("font_color", "Label"), "theme defines label color")
 	t.assert_eq(theme.get_color("font_color", "Label"), Color("e8e1d2"), "approved warm text")
+	t.assert_true(theme.default_font != null, "theme ships a CJK-capable default font")
+	t.assert_true(ResourceLoader.exists("res://game_assets/ui/fonts/ui_cjk.ttf"), "CJK font is packaged")
+	t.assert_true(ResourceLoader.exists("res://game_assets/ui/boot_splash.png"), "boot splash is packaged")
+	t.assert_true(theme.default_font.get_string_size("部署").x > 8, "Chinese UI text has a real advance")
+	for key in LocaleScript.STRINGS.keys():
+		var text := LocaleScript.ui(str(key))
+		for index in text.length():
+			var code := text.unicode_at(index)
+			t.assert_true(ThemeFactory.UI_FONT.has_char(code) or theme.default_font.has_char(code), "font covers UI glyph in %s" % str(key))
 	t.assert_eq(Main.VALID_SCREENS, ["title", "deck_builder", "mulligan", "match", "result"], "complete flow")
 
 
