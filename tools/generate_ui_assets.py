@@ -2,7 +2,7 @@
 """Generate OpenCards UI art assets deterministically (stdlib only).
 
 Outputs to game_assets/ui/:
-  battlefield_bg.png  1280x720  muddy WW2 battlefield backdrop
+  battlefield_bg.png  1280x720  muted crop of boot_splash.png (not overwritten here)
   card_back.png       232x324   neutral card back (runtime nation tint)
   hq_us.png           256x256   US headquarters emblem plate
   hq_su.png           256x256   Soviet headquarters emblem plate
@@ -416,7 +416,8 @@ def gen_badge(path: str, top: tuple, bottom: tuple, shape: str) -> None:
 
 def main() -> None:
     os.makedirs(OUT_DIR, exist_ok=True)
-    gen_battlefield_bg(os.path.join(OUT_DIR, "battlefield_bg.png"))
+    # battlefield_bg.png is a darkened, desaturated crop of boot_splash.png so
+    # the discarded splash can sit behind cards without competing with them.
     gen_card_back(os.path.join(OUT_DIR, "card_back.png"))
     gen_hq(os.path.join(OUT_DIR, "hq_us.png"),
            rim=(0.335, 0.40, 0.375), deep=(0.14, 0.19, 0.21), star_fill=(0.66, 0.62, 0.44))

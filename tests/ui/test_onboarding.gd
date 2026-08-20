@@ -37,7 +37,10 @@ static func run(t) -> void:
 	await _test_board_unit_duty_states(t)
 	await _test_guard_links_and_timeline_report(t)
 	await _test_aim_arrow_and_dual_play(t)
+	await _test_illegal_source_does_not_aim(t)
+	await _test_dead_commands_stay_hidden(t)
 	await _test_hand_fan_is_uncropped(t)
+	await _test_opponent_hand_peeks_above_board(t)
 	await _test_rejection_refresh_ordering(t)
 	await _test_end_turn_semantic_states(t)
 	await _test_unavailable_card_does_not_submit(t)
@@ -149,7 +152,7 @@ static func _test_match_coach_and_card_states(t) -> void:
 	view.set_legal_actions([_action("deploy_unit", "one-cost", [], {"support_slot": 0}), _action("end_turn")])
 	view.set_onboarding_state(OnboardingStore.defaults())
 	await view.get_tree().process_frame
-	t.assert_eq(view.get_node("%CoachObjective").text, LocaleScript.ui("coach.deploy") % 1, "coach renders first-turn deploy objective")
+	t.assert_eq(view.get_node("%CoachObjective").text, LocaleScript.ui("coach.deploy"), "coach renders first-turn deploy objective")
 	var cards := view.get_node("%PlayerHand").get_children()
 	t.assert_eq(cards[0].action_state, "legal", "legal hand source is highlighted")
 	t.assert_eq(cards[1].action_state, "unavailable", "illegal hand source is unavailable")
@@ -159,9 +162,14 @@ static func _test_match_coach_and_card_states(t) -> void:
 	t.assert_eq(view.get_node("%CoachObjective").text, LocaleScript.ui("coach.support_slot"), "selection refreshes coach immediately")
 	t.assert_eq(view.get_node("%StatusLabel").text, "", "precise coach copy replaces legacy selection status")
 	var objective_height := (view.get_node("%CoachObjective") as Control).size.y
-	t.assert_eq(view.get_node("%AnimationButton").text, LocaleScript.ui("match.animation_on"), "match exposes animation preference")
-	view.get_node("%AnimationButton").pressed.emit()
-	t.assert_eq(view.animation_mode, "reduced", "animation command switches to reduced mode")
+	t.assert_true(not view.has_node("%AnimationButton"), "match does not keep animation on the battlefield")
+	t.assert_true(view.has_node("%SettingsButton"), "match exposes a settings entry")
+	view._open_settings()
+	var settings = view.get_node("SettingsDialog")
+	t.assert_true(settings.visible, "settings opens from the match menu")
+	settings.get_node("%ReducedMotionButton").pressed.emit()
+	t.assert_eq(view.animation_mode, "reduced", "settings switches to reduced motion")
+	settings.close()
 	view.show_rejection("stale_action", "That action is no longer legal.")
 	t.assert_eq(view.get_node("%CoachObjective").text, "That action is no longer legal.", "rejection takes coach precedence")
 	t.assert_eq((view.get_node("%CoachObjective") as Control).size.y, objective_height, "rejection does not resize coach strip")
@@ -256,6 +264,65 @@ static func _test_aim_arrow_and_dual_play(t) -> void:
 	await Engine.get_main_loop().process_frame
 
 
+static func _test_illegal_source_does_not_aim(t) -> void:
+	var view = MatchViewScene.instantiate()
+	Engine.get_main_loop().root.add_child(view)
+	Engine.get_main_loop().root.size = Vector2i(1280, 720)
+	var snapshot := _snapshot()
+	snapshot["turn"] = 3
+	snapshot.players.player.support_line = [
+		{"instance_id": "fresh-unit", "category": "Unit", "unit_type": "Infantry", "owner_id": "player", "deployed_turn": 3, "operations_used": 0, "operation_cost": 1},
+		{"instance_id": "ready-unit", "category": "Unit", "unit_type": "Infantry", "owner_id": "player", "deployed_turn": 1, "operations_used": 0, "operation_cost": 1},
+		null,
+		null,
+	]
+	view.render_snapshot(snapshot)
+	view.set_legal_actions([_action("move_unit", "ready-unit", [], {"zone": "frontline", "slot": 0}), _action("end_turn")])
+	await view.get_tree().process_frame
+	view._on_card_pressed("three-cost")
+	t.assert_eq(view.model.selected_source_id, "", "unavailable hand card is not selected")
+	t.assert_true(not view.is_processing(), "unavailable hand card does not start the aim arrow")
+	t.assert_true(not view._source_can_aim(), "unavailable hand card cannot draw an aim arrow")
+	view._on_board_card_pressed("fresh-unit")
+	t.assert_eq(view.model.selected_source_id, "", "unavailable board unit is not selected")
+	t.assert_true(not view.is_processing(), "unavailable board unit does not start the aim arrow")
+	t.assert_true(not view._source_can_aim(), "unavailable board unit cannot draw an aim arrow")
+	view._on_card_drag_started("three-cost")
+	t.assert_eq(view.model.selected_source_id, "", "dragging an unavailable card does not select it")
+	t.assert_true(not view._source_can_aim(), "dragging an unavailable card does not start the aim arrow")
+	view._on_board_card_pressed("ready-unit")
+	t.assert_eq(view.model.selected_source_id, "ready-unit", "legal board unit can still be selected")
+	t.assert_true(view._source_can_aim(), "legal board unit can aim at a destination")
+	view.queue_free()
+	await Engine.get_main_loop().process_frame
+
+
+static func _test_dead_commands_stay_hidden(t) -> void:
+	var view = MatchViewScene.instantiate()
+	Engine.get_main_loop().root.add_child(view)
+	Engine.get_main_loop().root.size = Vector2i(1280, 720)
+	view.render_snapshot(_snapshot())
+	view.set_legal_actions([_action("deploy_unit", "one-cost", [], {"support_slot": 0}), _action("end_turn")])
+	await view.get_tree().process_frame
+	t.assert_true(not view.get_node("%ConfirmButton").visible, "Confirm stays hidden until an action needs it")
+	t.assert_true(not view.get_node("%CancelButton").visible, "Cancel stays hidden until a source is selected")
+	t.assert_true(view.get_node("%EndTurnButton").visible, "End Turn appears when it can be used")
+	view._on_card_pressed("one-cost")
+	t.assert_true(view.get_node("%CancelButton").visible, "Cancel appears after a source is selected")
+	t.assert_true(not view.get_node("%ConfirmButton").visible, "Confirm stays hidden while a slot is still required")
+	view._open_settings()
+	var settings = view.get_node("SettingsDialog")
+	t.assert_true(settings.visible, "settings dialog opens from the match menu")
+	t.assert_eq(settings.get_node("%FullMotionButton").text, LocaleScript.ui("settings.motion_full"), "settings exposes full motion")
+	t.assert_true(settings.get_node("%ConcedeButton").visible, "settings offers concede during the player turn")
+	t.assert_true(settings.get_node("%ExitButton").visible, "settings offers exit")
+	t.assert_eq(settings.get_node("%ExitButton").text, LocaleScript.ui("settings.exit"), "exit uses the settings label")
+	settings.close()
+	t.assert_true(not settings.visible, "closing settings returns to the board")
+	view.queue_free()
+	await Engine.get_main_loop().process_frame
+
+
 static func _test_hand_fan_is_uncropped(t) -> void:
 	var view = MatchViewScene.instantiate()
 	Engine.get_main_loop().root.add_child(view)
@@ -266,12 +333,50 @@ static func _test_hand_fan_is_uncropped(t) -> void:
 	var hand := view.get_node("%PlayerHand") as Control
 	var scroll := view.get_node("%HandScroll") as Control
 	t.assert_true(not scroll.clip_contents, "hand scroll does not clip the fan")
-	t.assert_true(hand.custom_minimum_size.y >= 200.0, "hand reserves height for the curve")
-	t.assert_true(scroll.custom_minimum_size.y >= 200.0, "hand viewport is tall enough for the fan")
+	t.assert_true(hand.custom_minimum_size.y <= 96.0, "hand strip stays compact")
+	t.assert_true(scroll.custom_minimum_size.y <= 96.0, "hand viewport stays compact")
+	var hand_area := view.get_node("Margin/Columns/Board/HandArea") as Control
+	t.assert_true(view.size.y - hand_area.get_global_rect().end.y <= 12.0, "hand sits on the bottom edge")
+	t.assert_true(not view.has_node("Margin/Columns/Board/BottomFlex"), "leftover height is not parked under the hand")
+	var opponent_row := view.get_node("Margin/Columns/Board/OpponentArea") as Control
+	var frontline := view.get_node("%Frontline") as Control
+	var player_row := view.get_node("Margin/Columns/Board/PlayerArea") as Control
+	t.assert_true(opponent_row.size_flags_vertical & Control.SIZE_EXPAND, "opponent row takes leftover height")
+	t.assert_true(player_row.size_flags_vertical & Control.SIZE_EXPAND, "player row takes leftover height")
+	t.assert_true(frontline.global_position.y - opponent_row.get_global_rect().end.y >= 6.0, "opponent row and frontline keep a gap")
+	t.assert_true(player_row.global_position.y - frontline.get_global_rect().end.y >= 6.0, "frontline and player row keep a gap")
 	for card in hand.get_children():
-		var bottom := (card as Control).position.y + (card as Control).size.y
-		t.assert_true(bottom <= hand.custom_minimum_size.y + 0.5, "hand card stays inside the fan height")
 		t.assert_true((card as Control).position.y >= 0.0, "hand card is not pushed above the fan")
+		t.assert_true((card as Control).position.y < scroll.custom_minimum_size.y, "hand card starts inside the strip")
+	view.queue_free()
+	await Engine.get_main_loop().process_frame
+
+
+static func _test_opponent_hand_peeks_above_board(t) -> void:
+	var view = MatchViewScene.instantiate()
+	Engine.get_main_loop().root.add_child(view)
+	Engine.get_main_loop().root.size = Vector2i(1280, 720)
+	var snapshot := _snapshot()
+	snapshot.players.opponent.hand = [{"hidden": true}, {"hidden": true}, {"hidden": true}, {"hidden": true}]
+	snapshot.players.opponent.support_line = [
+		{"instance_id": "enemy-guard", "title": "Guards Rifle Section", "category": "Unit", "owner_id": "opponent", "slot": 0},
+		null, null, null,
+	]
+	view.render_snapshot(snapshot)
+	await view.get_tree().process_frame
+	await view.get_tree().process_frame
+	var strip := view.get_node("%OpponentHandStrip") as Control
+	var support := view.get_node("%OpponentSupport") as Control
+	var hq := view.get_node("%OpponentHQ") as Control
+	t.assert_true(strip.custom_minimum_size.y <= 28.0, "opponent hand keeps a short peek strip")
+	t.assert_true(strip.get_global_rect().end.y <= support.get_global_rect().position.y + 1.0, "peek strip sits above enemy support")
+	t.assert_true(strip.get_global_rect().end.y <= hq.get_global_rect().position.y + 1.0, "peek strip sits above enemy HQ")
+	for card in view.get_node("%OpponentHand").get_children():
+		var rect: Rect2 = view.opponent_card_visual_rect(card)
+		t.assert_true(not rect.intersects(support.get_global_rect()), "opponent hand does not cover support")
+		t.assert_true(not rect.intersects(hq.get_global_rect()), "opponent hand does not cover HQ")
+		t.assert_true(rect.position.y < strip.get_global_rect().position.y + 2.0, "opponent cards hang off the top of the strip")
+		t.assert_true(rect.end.y <= support.get_global_rect().position.y + 1.0, "opponent card bottoms stay out of the play row")
 	view.queue_free()
 	await Engine.get_main_loop().process_frame
 
@@ -300,14 +405,14 @@ static func _test_rejection_refresh_ordering(t) -> void:
 	var advanced := snapshot.duplicate(true)
 	advanced.sequence = 13
 	view.render_snapshot(advanced)
-	t.assert_eq(view.get_node("%CoachObjective").text, LocaleScript.ui("coach.deploy") % 1, "authoritative sequence advance clears rejection")
+	t.assert_eq(view.get_node("%CoachObjective").text, LocaleScript.ui("coach.deploy"), "authoritative sequence advance clears rejection")
 	t.assert_eq(view.get_node("%StatusLabel").text, "", "authoritative sequence advance clears rejection status")
 	view.show_rejection("stale_action", "State changed")
 	view._on_card_pressed("one-cost")
 	t.assert_eq(view.get_node("%CoachObjective").text, LocaleScript.ui("coach.support_slot"), "selection change clears rejection")
 	view.show_rejection("stale_action", "State changed")
 	view._on_cancel_pressed()
-	t.assert_eq(view.get_node("%CoachObjective").text, LocaleScript.ui("coach.deploy") % 1, "cancellation clears rejection")
+	t.assert_eq(view.get_node("%CoachObjective").text, LocaleScript.ui("coach.deploy"), "cancellation clears rejection")
 	view.queue_free()
 	await Engine.get_main_loop().process_frame
 
@@ -321,11 +426,14 @@ static func _test_end_turn_semantic_states(t) -> void:
 	var deploy := _action("deploy_unit", "one-cost", [], {"support_slot": 0})
 	view.set_legal_actions([])
 	t.assert_true(button.disabled, "empty legal list disables End Turn")
+	t.assert_true(not button.visible, "empty legal list hides End Turn")
 	t.assert_eq(button.get_meta("action_state", ""), "disabled", "empty legal list has disabled semantics")
 	view.set_legal_actions([deploy])
 	t.assert_true(button.disabled, "non-End-Turn legal list disables End Turn")
+	t.assert_true(not button.visible, "non-End-Turn legal list hides End Turn")
 	view.set_legal_actions([deploy, end])
 	t.assert_true(not button.disabled, "exact End Turn candidate enables command")
+	t.assert_true(button.visible, "usable End Turn is shown")
 	t.assert_eq(button.get_meta("action_state", ""), "normal", "mixed legal actions keep normal End Turn emphasis")
 	view.set_legal_actions([end, end])
 	t.assert_true(not button.disabled, "End Turn remains enabled whenever an exact candidate exists")
@@ -334,6 +442,8 @@ static func _test_end_turn_semantic_states(t) -> void:
 	t.assert_true(not button.disabled, "sole End Turn remains enabled")
 	t.assert_eq(button.get_meta("action_state", ""), "strong", "sole End Turn receives strong semantic emphasis")
 	t.assert_true(button.get_theme_stylebox("normal").get_border_width(SIDE_LEFT) >= 3, "strong End Turn state has visible border emphasis")
+	t.assert_true(not view.get_node("%CoachObjective").visible, "sole End Turn does not occupy a banner")
+	t.assert_eq(view.get_node("%CoachObjective").text, "", "sole End Turn does not lecture the player")
 	view.queue_free()
 	await Engine.get_main_loop().process_frame
 
@@ -386,16 +496,21 @@ static func _test_stable_battlefield_grid(t) -> void:
 			t.assert_eq(centers.size(), 5, "%s exposes five grid cells at %d" % [zone_name, viewport_width])
 			for slot in zone.get_children():
 				var slot_control := slot as Control
-				t.assert_true(slot_control.size.x >= 90.0 and slot_control.size.x <= 112.0, "slot width remains bounded at %d" % viewport_width)
+				t.assert_true(is_equal_approx(slot_control.size.x, 80.0), "slot matches battlefield card width at %d" % viewport_width)
+				t.assert_true(is_equal_approx(slot_control.size.y, 112.0), "slot matches battlefield card height at %d" % viewport_width)
 				if slot_control.get_child_count() > 0:
 					t.assert_true(slot_control.get_global_rect().encloses((slot_control.get_child(0) as Control).get_global_rect()), "card fills without escaping its stable slot")
 		var grid_left: float = (view.get_node("%Frontline").get_child(0) as Control).get_global_rect().position.x
-		t.assert_true((view.get_node("%OpponentHQ") as Control).get_global_rect().end.x < grid_left, "opponent HQ stays outside grid")
-		t.assert_true((view.get_node("%PlayerHQ") as Control).get_global_rect().end.x < grid_left, "player HQ stays outside grid")
+		var opponent_hq := view.get_node("%OpponentHQ") as Control
+		var player_hq := view.get_node("%PlayerHQ") as Control
+		t.assert_true(opponent_hq.get_global_rect().end.x < grid_left, "opponent HQ stays outside grid")
+		t.assert_true(player_hq.get_global_rect().end.x < grid_left, "player HQ stays outside grid")
+		t.assert_true(grid_left - opponent_hq.get_global_rect().end.x <= 16.0, "opponent HQ docks to the support line")
+		t.assert_true(grid_left - player_hq.get_global_rect().end.x <= 16.0, "player HQ docks to the support line")
 		var hand := view.get_node("%PlayerHand") as Control
 		if hand.get_child_count() > 1:
 			var hand_gap := (hand.get_child(1) as Control).position.x - (hand.get_child(0) as Control).position.x
-			t.assert_eq(snappedf(hand_gap, 0.01), 124.0, "hand uses fixed card spacing")
+			t.assert_eq(snappedf(hand_gap, 0.01), 100.0, "hand uses fixed card spacing")
 		view.queue_free()
 		await Engine.get_main_loop().process_frame
 
@@ -702,7 +817,8 @@ static func _test_lock_blocks_animation_and_keyboard_selection(t) -> void:
 	view.render_snapshot(_snapshot())
 	view.model.select_source("one-cost")
 	view.set_input_locked(true)
-	t.assert_true(view.get_node("%AnimationButton").disabled, "animation preference is disabled while input is locked")
+	t.assert_true(not view.get_node("%SettingsButton").disabled, "settings stays available while match input is locked")
+	t.assert_true(not view.get_node("%EndTurnButton").visible, "locked End Turn is hidden instead of shown disabled")
 	var event := InputEventAction.new()
 	event.action = "ui_cancel"
 	event.pressed = true
@@ -835,7 +951,7 @@ static func _test_coach_priority_and_exact_copy(t) -> void:
 	_assert_coach(t, snapshot, [compound_order, end], {"selected_source_id": "order", "selected_targets": ["enemy-unit"]},
 		LocaleScript.ui("coach.target"), ["order"], "target")
 	_assert_coach(t, snapshot, [deploy, move, attack, order, counter, end], {},
-		LocaleScript.ui("coach.deploy") % 1, ["counter", "front-unit", "one-cost", "order", "support-unit"], "deploy")
+		LocaleScript.ui("coach.deploy"), ["counter", "front-unit", "one-cost", "order", "support-unit"], "deploy")
 	_assert_coach(t, snapshot, [move, attack, order, counter, end], {},
 		LocaleScript.ui("coach.move"), ["counter", "front-unit", "order", "support-unit"], "move")
 	_assert_coach(t, snapshot, [attack, order, counter, end], {},
@@ -881,7 +997,7 @@ static func _test_milestone_objective_progression(t) -> void:
 	onboarding.completed_attack = true
 	result = MatchCoachModel.derive(snapshot, actions, {}, onboarding)
 	t.assert_eq(result.next_kind, "deploy", "completed milestones fall back to truthful normal priority")
-	t.assert_eq(result.objective, LocaleScript.ui("coach.deploy") % 1, "fallback objective describes an available action")
+	t.assert_eq(result.objective, LocaleScript.ui("coach.deploy"), "fallback objective describes an available action")
 	t.assert_eq(result.legal_source_ids, expected_sources, "fallback keeps every legal source")
 	t.assert_eq(result.source_reasons, expected_reasons, "fallback keeps complete-list source reasons")
 	t.assert_true(not result.end_turn_only, "fallback keeps complete-list End Turn semantics")
@@ -904,7 +1020,7 @@ static func _test_real_first_turn_credit_fixture(t) -> void:
 	var result := MatchCoachModel.derive(public_snapshot, actions, {}, {})
 	t.assert_true(result.legal_source_ids.has(active.hand[0].instance_id), "one-Credit unit is a legal source")
 	t.assert_true(not result.legal_source_ids.has(active.hand[1].instance_id), "three-Credit unit is not a legal source")
-	t.assert_eq(result.objective, LocaleScript.ui("coach.deploy") % 1, "real first-turn fixture uses exact deploy copy")
+	t.assert_eq(result.objective, LocaleScript.ui("coach.deploy"), "real first-turn fixture uses exact deploy copy")
 
 
 static func _test_real_active_countermeasure_is_legal(t) -> void:

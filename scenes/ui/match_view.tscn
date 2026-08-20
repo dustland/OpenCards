@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/match_view.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/ui/zone_view.gd" id="2"]
@@ -7,18 +7,23 @@
 [ext_resource type="PackedScene" path="res://scenes/ui/hq_view.tscn" id="5"]
 [ext_resource type="Texture2D" path="res://game_assets/ui/card_back.png" id="6"]
 [ext_resource type="Script" path="res://scripts/ui/battlefield_decor.gd" id="7"]
+[ext_resource type="Texture2D" path="res://game_assets/ui/badge_cost.png" id="8"]
 
 [sub_resource type="StyleBoxFlat" id="TimelineSurface"]
-bg_color = Color(0.12, 0.13, 0.10, 0.42)
+bg_color = Color(0.07, 0.08, 0.06, 0.72)
 border_width_left = 1
 border_width_top = 1
 border_width_right = 1
 border_width_bottom = 1
-border_color = Color(0.55, 0.47, 0.30, 0.85)
-corner_radius_top_left = 4
-corner_radius_top_right = 4
-corner_radius_bottom_right = 4
-corner_radius_bottom_left = 4
+border_color = Color(0.55, 0.47, 0.30, 0.55)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+content_margin_left = 8
+content_margin_top = 6
+content_margin_right = 8
+content_margin_bottom = 6
 
 [sub_resource type="StyleBoxFlat" id="PileSurface"]
 bg_color = Color(0.08, 0.08, 0.06, 0.35)
@@ -57,9 +62,9 @@ anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 offset_left = 8.0
-offset_top = 6.0
+offset_top = 0.0
 offset_right = -8.0
-offset_bottom = -6.0
+offset_bottom = 0.0
 grow_horizontal = 2
 grow_vertical = 2
 
@@ -72,19 +77,26 @@ unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 0
-[node name="Top" type="HBoxContainer" parent="Margin/Columns/Board"]
-layout_mode = 2
-[node name="OpponentLabel" type="Label" parent="Margin/Columns/Board/Top"]
+[node name="OpponentHandStrip" type="Control" parent="Margin/Columns/Board"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 26)
 layout_mode = 2
-size_flags_horizontal = 3
-[node name="TurnLabel" type="Label" parent="Margin/Columns/Board/Top"]
+mouse_filter = 2
+[node name="OpponentHand" type="Control" parent="Margin/Columns/Board/OpponentHandStrip"]
 unique_name_in_owner = true
-layout_mode = 2
-
+z_index = 8
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+clip_contents = false
 [node name="OpponentArea" type="Control" parent="Margin/Columns/Board"]
-custom_minimum_size = Vector2(0, 122)
+custom_minimum_size = Vector2(0, 132)
 layout_mode = 2
+size_flags_vertical = 3
 alignment = 1
 [node name="HQHolder" type="Control" parent="Margin/Columns/Board/OpponentArea"]
 layout_mode = 1
@@ -101,7 +113,7 @@ layout_mode = 0
 offset_right = 108.0
 offset_bottom = 118.0
 [node name="GridHolder" type="Control" parent="Margin/Columns/Board/OpponentArea"]
-custom_minimum_size = Vector2(572, 118)
+custom_minimum_size = Vector2(432, 112)
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -117,25 +129,39 @@ anchor_left = 0.5
 anchor_top = 0.0
 anchor_right = 0.5
 anchor_bottom = 1.0
-offset_left = -286.0
-offset_right = 286.0
+offset_left = -216.0
+offset_right = 216.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("2")
 zone_name = "opponent_support"
 
+[node name="PlayGap1" type="Control" parent="Margin/Columns/Board"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 8)
+layout_mode = 2
+mouse_filter = 2
+
 [node name="Frontline" type="Control" parent="Margin/Columns/Board"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 122)
+custom_minimum_size = Vector2(0, 132)
 layout_mode = 2
-size_flags_horizontal = 4
+size_flags_horizontal = 3
+size_flags_vertical = 3
 script = ExtResource("2")
 zone_name = "frontline"
 slot_count = 5
 
-[node name="PlayerArea" type="Control" parent="Margin/Columns/Board"]
-custom_minimum_size = Vector2(0, 122)
+[node name="PlayGap2" type="Control" parent="Margin/Columns/Board"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 8)
 layout_mode = 2
+mouse_filter = 2
+
+[node name="PlayerArea" type="Control" parent="Margin/Columns/Board"]
+custom_minimum_size = Vector2(0, 132)
+layout_mode = 2
+size_flags_vertical = 3
 alignment = 1
 [node name="HQHolder" type="Control" parent="Margin/Columns/Board/PlayerArea"]
 layout_mode = 1
@@ -152,7 +178,7 @@ layout_mode = 0
 offset_right = 108.0
 offset_bottom = 118.0
 [node name="GridHolder" type="Control" parent="Margin/Columns/Board/PlayerArea"]
-custom_minimum_size = Vector2(572, 118)
+custom_minimum_size = Vector2(432, 112)
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -168,87 +194,53 @@ anchor_left = 0.5
 anchor_top = 0.0
 anchor_right = 0.5
 anchor_bottom = 1.0
-offset_left = -286.0
-offset_right = 286.0
+offset_left = -216.0
+offset_right = 216.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("2")
 
-[node name="PlayerBar" type="HBoxContainer" parent="Margin/Columns/Board"]
-layout_mode = 2
-[node name="PlayerLabel" type="Label" parent="Margin/Columns/Board/PlayerBar"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-[node name="CreditLabel" type="Label" parent="Margin/Columns/Board/PlayerBar"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(88, 0)
-layout_mode = 2
-horizontal_alignment = 2
-[node name="CancelButton" type="Button" parent="Margin/Columns/Board/PlayerBar"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(72, 40)
-layout_mode = 2
-text = "Cancel"
-[node name="ConfirmButton" type="Button" parent="Margin/Columns/Board/PlayerBar"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(82, 40)
-layout_mode = 2
-text = "Confirm"
-[node name="EndTurnButton" type="Button" parent="Margin/Columns/Board/PlayerBar"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(90, 40)
-layout_mode = 2
-text = "End Turn"
-[node name="ConcedeButton" type="Button" parent="Margin/Columns/Board/PlayerBar"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(86, 40)
-layout_mode = 2
-text = "Concede"
-tooltip_text = "Forfeit this match"
-[node name="ConcedeDialog" type="ConfirmationDialog" parent="Margin/Columns/Board/PlayerBar/ConcedeButton"]
+[node name="ConcedeDialog" type="ConfirmationDialog" parent="."]
 unique_name_in_owner = true
 title = "Concede Match?"
 dialog_text = "Forfeit this match? The opponent will be declared the winner."
 ok_button_text = "Concede"
 cancel_button_text = "Keep Playing"
-[node name="AnimationButton" type="Button" parent="Margin/Columns/Board/PlayerBar"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(132, 40)
-layout_mode = 2
-text = "Animation: On"
-tooltip_text = "Use reduced card motion"
 
 [node name="StatusLabel" type="Label" parent="Margin/Columns/Board"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 20)
+visible = false
+custom_minimum_size = Vector2(0, 0)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.819608, 0.709804, 0.435294, 1)
 text_overrun_behavior = 3
 
 [node name="CoachObjective" type="Label" parent="Margin/Columns/Board"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 36)
+visible = false
+custom_minimum_size = Vector2(0, 22)
 layout_mode = 2
-theme_override_colors/font_color = Color(0.945, 0.855, 0.55, 1)
-theme_override_font_sizes/font_size = 15
-text = "No legal action is available."
+clip_contents = true
+theme_override_colors/font_color = Color(0.8, 0.72, 0.52, 0.86)
+theme_override_font_sizes/font_size = 14
 vertical_alignment = 1
 text_overrun_behavior = 3
 
 [node name="HandArea" type="HBoxContainer" parent="Margin/Columns/Board"]
+custom_minimum_size = Vector2(0, 86)
 layout_mode = 2
-size_flags_vertical = 3
+size_flags_vertical = 0
 theme_override_constants/separation = 8
 
 [node name="OpponentPiles" type="VBoxContainer" parent="Margin/Columns/Board/HandArea"]
 custom_minimum_size = Vector2(52, 0)
 layout_mode = 2
-theme_override_constants/separation = 6
+size_flags_vertical = 4
+theme_override_constants/separation = 4
 
 [node name="OpponentDeckPile" type="Panel" parent="Margin/Columns/Board/HandArea/OpponentPiles"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(48, 64)
+custom_minimum_size = Vector2(48, 40)
 layout_mode = 2
 size_flags_vertical = 0
 theme_override_styles/panel = SubResource("PileSurface")
@@ -295,7 +287,7 @@ vertical_alignment = 1
 
 [node name="OpponentDiscardPile" type="Panel" parent="Margin/Columns/Board/HandArea/OpponentPiles"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(48, 64)
+custom_minimum_size = Vector2(48, 40)
 layout_mode = 2
 size_flags_vertical = 0
 theme_override_styles/panel = SubResource("PileSurface")
@@ -342,27 +334,28 @@ vertical_alignment = 1
 
 [node name="HandScroll" type="ScrollContainer" parent="Margin/Columns/Board/HandArea"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 214)
+custom_minimum_size = Vector2(0, 86)
 layout_mode = 2
 size_flags_horizontal = 3
 clip_contents = false
-horizontal_scroll_mode = 2
+horizontal_scroll_mode = 3
 vertical_scroll_mode = 0
 [node name="PlayerHand" type="Control" parent="Margin/Columns/Board/HandArea/HandScroll"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 clip_contents = false
-custom_minimum_size = Vector2(0, 214)
+custom_minimum_size = Vector2(0, 86)
 
 [node name="PlayerPiles" type="VBoxContainer" parent="Margin/Columns/Board/HandArea"]
 custom_minimum_size = Vector2(52, 0)
 layout_mode = 2
-theme_override_constants/separation = 6
+size_flags_vertical = 4
+theme_override_constants/separation = 4
 
 [node name="PlayerDeckPile" type="Panel" parent="Margin/Columns/Board/HandArea/PlayerPiles"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(48, 64)
+custom_minimum_size = Vector2(48, 40)
 layout_mode = 2
 size_flags_vertical = 0
 theme_override_styles/panel = SubResource("PileSurface")
@@ -409,7 +402,7 @@ vertical_alignment = 1
 
 [node name="PlayerDiscardPile" type="Panel" parent="Margin/Columns/Board/HandArea/PlayerPiles"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(48, 64)
+custom_minimum_size = Vector2(48, 40)
 layout_mode = 2
 size_flags_vertical = 0
 theme_override_styles/panel = SubResource("PileSurface")
@@ -454,14 +447,123 @@ text = "0"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="TimelinePanel" type="PanelContainer" parent="Margin/Columns"]
+[node name="ChromeOverlay" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Top" type="HBoxContainer" parent="ChromeOverlay"]
+layout_mode = 0
+offset_left = 8.0
+offset_top = 4.0
+offset_right = 1272.0
+offset_bottom = 34.0
+mouse_filter = 2
+[node name="OpponentLabel" type="Label" parent="ChromeOverlay/Top"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(148, 0)
 layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+[node name="PlayerLabel" type="Label" parent="ChromeOverlay/Top"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+[node name="TurnLabel" type="Label" parent="ChromeOverlay/Top"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+[node name="LogGap" type="Control" parent="ChromeOverlay/Top"]
+custom_minimum_size = Vector2(230, 0)
+layout_mode = 2
+mouse_filter = 2
+
+[node name="PlayerBar" type="HBoxContainer" parent="ChromeOverlay"]
+layout_mode = 0
+offset_left = 900.0
+offset_top = 520.0
+offset_right = 1264.0
+offset_bottom = 560.0
+alignment = 2
+[node name="CreditChip" type="HBoxContainer" parent="ChromeOverlay/PlayerBar"]
+layout_mode = 2
+theme_override_constants/separation = 4
+alignment = 2
+[node name="CreditIcon" type="TextureRect" parent="ChromeOverlay/PlayerBar/CreditChip"]
+custom_minimum_size = Vector2(22, 22)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 5
+texture = ExtResource("8")
+[node name="CreditLabel" type="Label" parent="ChromeOverlay/PlayerBar/CreditChip"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(56, 0)
+layout_mode = 2
+vertical_alignment = 1
+horizontal_alignment = 2
+[node name="CancelButton" type="Button" parent="ChromeOverlay/PlayerBar"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(68, 36)
+layout_mode = 2
+text = "Cancel"
+[node name="ConfirmButton" type="Button" parent="ChromeOverlay/PlayerBar"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(78, 36)
+layout_mode = 2
+text = "Confirm"
+[node name="EndTurnButton" type="Button" parent="ChromeOverlay/PlayerBar"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(88, 36)
+layout_mode = 2
+text = "End Turn"
+
+[node name="LogOverlay" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="TimelinePanel" type="PanelContainer" parent="LogOverlay"]
+unique_name_in_owner = true
+visible = false
+z_index = 18
+custom_minimum_size = Vector2(220, 28)
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -230.0
+offset_top = 6.0
+offset_right = -10.0
+offset_bottom = 34.0
+grow_horizontal = 0
+grow_vertical = 0
+clip_contents = true
+mouse_filter = 0
 theme_override_styles/panel = SubResource("TimelineSurface")
-[node name="Scroll" type="ScrollContainer" parent="Margin/Columns/TimelinePanel"]
+
+[node name="LogStack" type="VBoxContainer" parent="LogOverlay/TimelinePanel"]
 layout_mode = 2
-[node name="Timeline" type="VBoxContainer" parent="Margin/Columns/TimelinePanel/Scroll"]
+theme_override_constants/separation = 2
+
+[node name="Scroll" type="ScrollContainer" parent="LogOverlay/TimelinePanel/LogStack"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="Timeline" type="VBoxContainer" parent="LogOverlay/TimelinePanel/LogStack/Scroll"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3

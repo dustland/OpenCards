@@ -58,6 +58,7 @@ func cancel() -> void:
 	_cleanup_transients()
 
 func _play_event(event_type: String, event: Dictionary, before: Dictionary, after: Dictionary, before_rects: Dictionary, after_rects: Dictionary, view: MatchView, generation: int) -> void:
+	SfxPlayer.play_event(event_type, event)
 	var duration_ms: float = float(DURATIONS_MS[event_type])
 	if view.animation_mode == "reduced": duration_ms = minf(duration_ms, 80.0)
 	last_duration_ms = duration_ms
@@ -79,8 +80,13 @@ func _play_event(event_type: String, event: Dictionary, before: Dictionary, afte
 	var target_id := _target_id(event_type, event, before, after)
 	var source_rect: Rect2 = before_rects.get(source_id, Rect2())
 	var destination_rect: Rect2 = after_rects.get(source_id, source_rect)
+	var actor_id := str(event.get("player_id", ""))
 	if event_type == "card_drawn" and not source_rect.has_area():
-		source_rect = view.deck_edge_rect(str(event.get("player_id", "player")))
+		source_rect = view.deck_edge_rect(actor_id if not actor_id.is_empty() else "player")
+	if event_type == "card_drawn" and actor_id == "opponent" and not destination_rect.has_area():
+		destination_rect = view.opponent_hand_origin_rect()
+	if event_type in ["card_deployed", "order_played", "countermeasure_activated"] and actor_id == "opponent" and not source_rect.has_area():
+		source_rect = view.opponent_hand_origin_rect()
 	if event_type in ["order_played", "countermeasure_activated", "countermeasure_deactivated", "countermeasure_triggered"]:
 		destination_rect = view.command_area_rect()
 	last_source_rect = source_rect
@@ -110,7 +116,9 @@ func _play_event(event_type: String, event: Dictionary, before: Dictionary, afte
 		_active_tween.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 		_active_tween.set_parallel(true)
 		_active_tween.tween_property(ghost, "global_position", destination_rect.position, duration)
-		_active_tween.tween_property(ghost, "size", destination_rect.size, duration)
+		if ghost.size.x > 0.0 and ghost.size.y > 0.0 and destination_rect.has_area():
+			var uniform := minf(destination_rect.size.x / ghost.size.x, destination_rect.size.y / ghost.size.y)
+			_active_tween.tween_property(ghost, "scale", Vector2(uniform, uniform), duration)
 		_active_tween.tween_property(ghost, "modulate:a", 0.25 if destination_rect.has_area() else 0.0, duration)
 	elif event_type == "order_played" or event_type.begins_with("countermeasure_"):
 		ghost.modulate = Color("ffe9b8")
@@ -195,8 +203,7 @@ func _ghost_card(view: MatchView, rect: Rect2, card_info: Dictionary) -> Control
 	ghost.z_index = 32
 	view.add_child(ghost)
 	ghost.global_position = rect.position
-	ghost.size = rect.size
-	ghost.pivot_offset = rect.size * 0.5
+	ghost.pivot_offset = ghost.size * 0.5
 	_transients.append(ghost)
 	return ghost
 

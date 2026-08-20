@@ -1,30 +1,31 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/card_view.gd" id="1_script"]
 [ext_resource type="Texture2D" path="res://game_assets/ui/card_back.png" id="2_card_back"]
 [ext_resource type="Texture2D" path="res://game_assets/ui/badge_cost.png" id="3_badge_cost"]
 [ext_resource type="Texture2D" path="res://game_assets/ui/badge_attack.png" id="4_badge_attack"]
 [ext_resource type="Texture2D" path="res://game_assets/ui/badge_defense.png" id="5_badge_defense"]
+[ext_resource type="Texture2D" path="res://game_assets/ui/badge_operate.png" id="6_badge_operate"]
 
 [sub_resource type="StyleBoxFlat" id="StyleCard"]
-bg_color = Color(0.105882, 0.137255, 0.117647, 1)
+bg_color = Color(0.086, 0.11, 0.09, 1)
 border_width_left = 2
 border_width_top = 2
 border_width_right = 2
-border_width_bottom = 2
-border_color = Color(0.65098, 0.552941, 0.286275, 1)
+border_width_bottom = 3
+border_color = Color(0.72, 0.61, 0.34, 1)
 corner_radius_top_left = 6
 corner_radius_top_right = 6
 corner_radius_bottom_right = 6
 corner_radius_bottom_left = 6
 
 [sub_resource type="StyleBoxFlat" id="StyleFrameInner"]
-bg_color = Color(0.0862745, 0.109804, 0.0941176, 1)
+bg_color = Color(0.07, 0.09, 0.075, 1)
 border_width_left = 1
 border_width_top = 1
 border_width_right = 1
 border_width_bottom = 1
-border_color = Color(0.239216, 0.219608, 0.152941, 1)
+border_color = Color(0.42, 0.36, 0.22, 0.7)
 corner_radius_top_left = 4
 corner_radius_top_right = 4
 corner_radius_bottom_right = 4
@@ -266,8 +267,7 @@ grow_vertical = 2
 mouse_filter = 2
 expand_mode = 1
 stretch_mode = 5
-modulate = Color(0.75, 0.92, 0.88, 1)
-texture = ExtResource("3_badge_cost")
+texture = ExtResource("6_badge_operate")
 
 [node name="Description" type="Label" parent="Frame"]
 layout_mode = 1

@@ -4,13 +4,14 @@ extends Button
 signal card_pressed(instance_id: String)
 signal card_drag_started(instance_id: String)
 signal card_dropped(instance_id: String, target: Variant)
+signal inspected(data: Dictionary)
 
 const LocaleScript = preload("res://scripts/ui/locale.gd")
 
 const MODE_SIZES := {
 	"catalog": Vector2(180, 252),
 	"hand": Vector2(116, 162),
-	"battlefield": Vector2(108, 118),
+	"battlefield": Vector2(80, 112),
 	"hidden": Vector2(116, 162),
 }
 
@@ -24,6 +25,7 @@ const RARITY_PIP_COLORS := {
 var card_data: Dictionary = {}
 var mode := "catalog"
 var action_state := "normal"
+var native_tooltip := true
 var _base_tooltip := ""
 var _hover_active := false
 var _rest_position := Vector2.ZERO
@@ -39,11 +41,13 @@ func bind(data: Dictionary, display_mode: String) -> void:
 	assert(MODE_SIZES.has(display_mode), "Unsupported card display mode: %s" % display_mode)
 	_reset_hover()
 	rotation_degrees = 0.0
+	scale = Vector2.ONE
 	mode = display_mode
 	size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	custom_minimum_size = MODE_SIZES[mode]
 	size = custom_minimum_size
+	pivot_offset = size * 0.5
 	_apply_mode_layout()
 
 	var hidden := mode == "hidden" or bool(data.get("hidden", false))
@@ -62,12 +66,12 @@ func bind(data: Dictionary, display_mode: String) -> void:
 	get_node("Frame/Type").text = _type_mark(data)
 	get_node("Frame/Costs/Deployment").text = str(data.get("deployment_cost", ""))
 	get_node("Frame/Costs/Operation").text = str(data.get("operation_cost", ""))
-	get_node("Frame/Description").text = str(data.get("description", ""))
+	get_node("Frame/Description").text = LocaleScript.card_blurb(data)
 	get_node("Frame/Keywords").text = "  ".join(data.get("keywords", []))
 	get_node("Frame/Stats/Attack").text = str(data.get("attack", ""))
 	get_node("Frame/Stats/Defense").text = str(data.get("defense", ""))
 	get_node("Frame/Artwork").texture = _load_art(str(data.get("image_path", "")))
-	_base_tooltip = _inspect_text(data)
+	_base_tooltip = inspect_copy(data)
 	tooltip_text = _base_tooltip
 	_apply_semantic_accents(data)
 	set_action_state("normal")
@@ -100,6 +104,14 @@ func set_action_state(state: String, reason: String = "") -> void:
 	self_modulate = Color(0.68, 0.68, 0.68, 1.0) if state == "unavailable" else Color.WHITE
 	if state == "legal":
 		_start_legal_pulse()
+
+
+func _make_custom_tooltip(_for_text: String) -> Object:
+	if native_tooltip:
+		return null
+	var dummy := Control.new()
+	dummy.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return dummy
 
 
 func _on_pressed() -> void:
@@ -139,8 +151,11 @@ func _instance_id() -> String:
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_MOUSE_ENTER:
 		_set_hover_lift(true)
+		if not bool(card_data.get("hidden", false)):
+			inspected.emit(card_data)
 	elif what == NOTIFICATION_MOUSE_EXIT:
 		_set_hover_lift(false)
+		inspected.emit({})
 	elif what == NOTIFICATION_PREDELETE and _hover_tween != null and _hover_tween.is_valid():
 		_hover_tween.kill()
 
@@ -210,14 +225,21 @@ func _apply_mode_layout() -> void:
 	frame.clip_contents = false
 	artwork.visible = mode != "hidden"
 	title.visible = mode != "hidden"
-	type.visible = mode != "hidden"
-	costs.visible = mode != "hidden"
+	type.visible = mode == "catalog"
+	costs.visible = mode in ["catalog", "hand"]
 	stats.visible = mode != "hidden"
 	description.visible = mode == "catalog"
 	keywords.visible = mode == "catalog"
 	title_banner.visible = mode != "hidden"
 	artwork_trim.visible = mode != "hidden"
 	rarity_pip.visible = mode == "catalog"
+	get_node("Frame/Costs/Deployment").visible = mode != "battlefield"
+	get_node("Frame/Costs/Operation").visible = mode != "battlefield"
+	get_node("Frame/Stats/Attack").custom_minimum_size = Vector2(20, 20) if mode == "battlefield" else Vector2(22, 21)
+	get_node("Frame/Stats/Defense").custom_minimum_size = Vector2(20, 20) if mode == "battlefield" else Vector2(22, 21)
+	costs.add_theme_constant_override("separation", 2 if mode != "catalog" else 4)
+	stats.add_theme_constant_override("separation", 3 if mode == "battlefield" else 4)
+	stats.alignment = BoxContainer.ALIGNMENT_END
 
 	match mode:
 		"catalog":
@@ -226,42 +248,34 @@ func _apply_mode_layout() -> void:
 			_set_rect(title, 5, 3, 137, 27)
 			_set_rect(type, 141, 3, 167, 27)
 			_set_rect(title_banner, 2, 1, 170, 29)
-			_set_rect(costs, 123, 31, 165, 52)
-			_set_rect(artwork, 5, 54, 167, 126)
-			_set_rect(artwork_trim, 5, 54, 167, 126)
-			_set_rect(description, 6, 130, 166, 188)
-			_set_rect(keywords, 6, 192, 166, 211)
-			_set_rect(stats, 106, 216, 166, 237)
+			_set_rect(costs, 5, 31, 49, 52)
+			_set_rect(stats, 108, 31, 166, 52)
+			_set_rect(artwork, 5, 56, 167, 128)
+			_set_rect(artwork_trim, 5, 56, 167, 128)
+			_set_rect(description, 6, 132, 166, 190)
+			_set_rect(keywords, 6, 194, 166, 220)
 			_set_rect(category_strip, 0, 0, 3, 244)
 			_set_rect(rarity_pip, 156, 3, 168, 9)
 		"hand":
-			type.visible = true
-			keywords.visible = true
-			type.add_theme_font_size_override("font_size", 8)
-			keywords.add_theme_font_size_override("font_size", 8)
-			_set_rect(title, 4, 2, 104, 16)
+			_set_rect(costs, 3, 2, 49, 24)
+			_set_rect(stats, 55, 2, 105, 24)
+			_set_rect(title, 4, 25, 104, 41)
+			_set_rect(title_banner, 2, 1, 106, 42)
+			_set_rect(artwork, 4, 43, 104, 150)
+			_set_rect(artwork_trim, 4, 43, 104, 150)
 			_set_rect(type, 4, 16, 54, 28)
 			_set_rect(keywords, 56, 16, 104, 28)
-			_set_rect(title_banner, 2, 1, 102, 29)
-			_set_rect(artwork, 4, 30, 104, 112)
-			_set_rect(artwork_trim, 4, 30, 104, 112)
-			_set_rect(costs, 4, 114, 46, 133)
-			_set_rect(stats, 44, 128, 104, 149)
 			_set_rect(category_strip, 0, 0, 3, 154)
 		"battlefield":
-			type.visible = true
 			type.add_theme_font_size_override("font_size", 8)
-			get_node("Frame/Costs/Deployment").visible = false
-			costs.add_theme_constant_override("separation", 2)
-			stats.add_theme_constant_override("separation", 3)
-			_set_rect(title, 4, 2, 62, 35)
-			_set_rect(type, 64, 2, 96, 35)
-			_set_rect(title_banner, 2, 1, 94, 34)
-			_set_rect(artwork, 4, 38, 96, 79)
-			_set_rect(artwork_trim, 4, 38, 96, 79)
-			_set_rect(costs, 3, 84, 24, 105)
-			_set_rect(stats, 51, 84, 96, 105)
-			_set_rect(category_strip, 0, 0, 3, 110)
+			_set_rect(stats, 23, 2, 69, 22)
+			_set_rect(title, 3, 26, 69, 40)
+			_set_rect(title_banner, 2, 1, 70, 41)
+			_set_rect(artwork, 3, 42, 69, 104)
+			_set_rect(artwork_trim, 3, 42, 69, 104)
+			_set_rect(type, 3, 88, 69, 102)
+			_set_rect(costs, 3, 81, 23, 104)
+			_set_rect(category_strip, 0, 0, 3, 104)
 
 
 func _fit_title(value: String) -> void:
@@ -306,8 +320,10 @@ func _card_style(fill: Color, border: Color, width: int) -> StyleBoxFlat:
 	style.bg_color = fill
 	style.border_color = border
 	style.set_border_width_all(width)
+	style.border_width_bottom = width + 1
 	style.set_corner_radius_all(6)
 	style.set_expand_margin_all(1.0 if width >= 4 else 0.0)
+	style.anti_aliasing = true
 	return style
 
 
@@ -316,10 +332,14 @@ func _set_rect(control: Control, left: float, top: float, right: float, bottom: 
 	control.anchor_top = 0.0
 	control.anchor_right = 0.0
 	control.anchor_bottom = 0.0
+	control.grow_horizontal = Control.GROW_DIRECTION_END
+	control.grow_vertical = Control.GROW_DIRECTION_END
 	control.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	control.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-	control.custom_minimum_size = Vector2.ZERO
+	control.custom_minimum_size = Vector2(right - left, bottom - top)
 	control.clip_contents = true
+	control.position = Vector2(left, top)
+	control.size = Vector2(right - left, bottom - top)
 	control.offset_left = left
 	control.offset_top = top
 	control.offset_right = right
@@ -327,22 +347,38 @@ func _set_rect(control: Control, left: float, top: float, right: float, bottom: 
 
 
 func _type_mark(data: Dictionary) -> String:
-	var unit_type := str(data.get("unit_type", ""))
-	if mode == "hand" and not unit_type.is_empty():
-		return unit_type
-	if not unit_type.is_empty():
-		return unit_type.left(1).to_upper()
+	var kind := LocaleScript.card_kind(data)
+	if mode == "hand" and not kind.is_empty():
+		return kind
+	if not kind.is_empty():
+		return kind.left(1)
 	return str(data.get("category", "")).left(1).to_upper()
 
 
-func _inspect_text(data: Dictionary) -> String:
-	var lines: PackedStringArray = PackedStringArray([
-		str(data.get("title", "")),
-		str(data.get("unit_type", data.get("category", ""))),
-		str(data.get("description", "")),
-	])
+static func inspect_copy(data: Dictionary) -> String:
+	var lines: PackedStringArray = PackedStringArray()
+	var title := str(data.get("title", "")).strip_edges()
+	if not title.is_empty():
+		lines.append(title)
+	var kind := LocaleScript.card_kind(data)
+	if not kind.is_empty() and kind != title:
+		lines.append(kind)
+	var category := str(data.get("category", ""))
+	var deploy := int(data.get("deployment_cost", 0))
+	var operate := int(data.get("operation_cost", 0))
+	if category != "Headquarters":
+		lines.append("%s %d  ·  %s %d" % [LocaleScript.ui("inspect.deploy"), deploy, LocaleScript.ui("inspect.operate"), operate])
+	var attack := int(data.get("attack", 0))
+	var defense := int(data.get("defense", 0))
+	if category in ["Unit", "Headquarters"] or attack > 0 or defense > 0:
+		lines.append("%s %d  ·  %s %d" % [LocaleScript.ui("inspect.attack"), attack, LocaleScript.ui("inspect.defense"), defense])
+	var blurb := LocaleScript.card_blurb(data)
+	if not blurb.is_empty():
+		lines.append(blurb)
 	for keyword in data.get("keywords", []):
-		lines.append(LocaleScript.keyword(str(keyword)))
+		var keyword_text := LocaleScript.keyword(str(keyword))
+		if keyword_text != blurb and keyword_text not in lines:
+			lines.append(keyword_text)
 	return "\n".join(lines)
 
 

@@ -1,6 +1,10 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/how_to_play_view.gd" id="1"]
+[ext_resource type="Texture2D" path="res://game_assets/ui/badge_cost.png" id="2"]
+[ext_resource type="Texture2D" path="res://game_assets/ui/badge_attack.png" id="3"]
+[ext_resource type="Texture2D" path="res://game_assets/ui/badge_defense.png" id="4"]
+[ext_resource type="Texture2D" path="res://game_assets/ui/badge_operate.png" id="5"]
 
 [sub_resource type="StyleBoxFlat" id="Panel"]
 bg_color = Color(0.094, 0.125, 0.106, 0.97)
@@ -48,7 +52,7 @@ grow_vertical = 2
 mouse_filter = 2
 
 [node name="Panel" type="PanelContainer" parent="Center"]
-custom_minimum_size = Vector2(560, 0)
+custom_minimum_size = Vector2(620, 0)
 layout_mode = 2
 theme_override_styles/panel = SubResource("Panel")
 
@@ -61,92 +65,192 @@ unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.91, 0.82, 0.55, 1)
 theme_override_font_sizes/font_size = 26
-text = "怎么玩"
+text = "How to Play"
 horizontal_alignment = 1
 
-[node name="Steps" type="VBoxContainer" parent="Center/Panel/Column"]
+[node name="StepScroll" type="ScrollContainer" parent="Center/Panel/Column"]
+custom_minimum_size = Vector2(0, 400)
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="Steps" type="VBoxContainer" parent="Center/Panel/Column/StepScroll"]
 unique_name_in_owner = true
 layout_mode = 2
+size_flags_horizontal = 3
 theme_override_constants/separation = 10
 
-[node name="Step1" type="VBoxContainer" parent="Center/Panel/Column/Steps"]
+[node name="Step1" type="VBoxContainer" parent="Center/Panel/Column/StepScroll/Steps"]
 layout_mode = 2
 theme_override_constants/separation = 2
 
-[node name="Heading" type="Label" parent="Center/Panel/Column/Steps/Step1"]
+[node name="Heading" type="Label" parent="Center/Panel/Column/StepScroll/Steps/Step1"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.91, 0.82, 0.55, 1)
 theme_override_font_sizes/font_size = 16
-text = "1  目标"
+text = "1  Objective"
 
-[node name="Body" type="Label" parent="Center/Panel/Column/Steps/Step1"]
+[node name="Body" type="Label" parent="Center/Panel/Column/StepScroll/Steps/Step1"]
 layout_mode = 2
 autowrap_mode = 3
-text = "把敌方 HQ 的防御打到 0。双方开局都是 20 点。"
+text = "Reduce the enemy HQ to 0 defense to win. Your HQ reaching 0 is a loss. Both start at 20."
 
-[node name="Step2" type="VBoxContainer" parent="Center/Panel/Column/Steps"]
+[node name="Step2" type="VBoxContainer" parent="Center/Panel/Column/StepScroll/Steps"]
 layout_mode = 2
 theme_override_constants/separation = 2
 
-[node name="Heading" type="Label" parent="Center/Panel/Column/Steps/Step2"]
+[node name="Heading" type="Label" parent="Center/Panel/Column/StepScroll/Steps/Step2"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.91, 0.82, 0.55, 1)
 theme_override_font_sizes/font_size = 16
-text = "2  信用点"
+text = "2  The card"
 
-[node name="Body" type="Label" parent="Center/Panel/Column/Steps/Step2"]
+[node name="CardKey" type="GridContainer" parent="Center/Panel/Column/StepScroll/Steps/Step2"]
+layout_mode = 2
+theme_override_constants/h_separation = 18
+theme_override_constants/v_separation = 4
+columns = 2
+
+[node name="DeployRow" type="HBoxContainer" parent="Center/Panel/Column/StepScroll/Steps/Step2/CardKey"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Icon" type="TextureRect" parent="Center/Panel/Column/StepScroll/Steps/Step2/CardKey/DeployRow"]
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 5
+texture = ExtResource("2")
+
+[node name="CardDeployLabel" type="Label" parent="Center/Panel/Column/StepScroll/Steps/Step2/CardKey/DeployRow"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Deploy cost"
+
+[node name="OperateRow" type="HBoxContainer" parent="Center/Panel/Column/StepScroll/Steps/Step2/CardKey"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Icon" type="TextureRect" parent="Center/Panel/Column/StepScroll/Steps/Step2/CardKey/OperateRow"]
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 5
+texture = ExtResource("5")
+
+[node name="CardOperateLabel" type="Label" parent="Center/Panel/Column/StepScroll/Steps/Step2/CardKey/OperateRow"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Operate cost"
+
+[node name="AttackRow" type="HBoxContainer" parent="Center/Panel/Column/StepScroll/Steps/Step2/CardKey"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Icon" type="TextureRect" parent="Center/Panel/Column/StepScroll/Steps/Step2/CardKey/AttackRow"]
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 5
+texture = ExtResource("3")
+
+[node name="CardAttackLabel" type="Label" parent="Center/Panel/Column/StepScroll/Steps/Step2/CardKey/AttackRow"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Attack"
+
+[node name="DefenseRow" type="HBoxContainer" parent="Center/Panel/Column/StepScroll/Steps/Step2/CardKey"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Icon" type="TextureRect" parent="Center/Panel/Column/StepScroll/Steps/Step2/CardKey/DefenseRow"]
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 5
+texture = ExtResource("4")
+
+[node name="CardDefenseLabel" type="Label" parent="Center/Panel/Column/StepScroll/Steps/Step2/CardKey/DefenseRow"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Defense"
+
+[node name="Body" type="Label" parent="Center/Panel/Column/StepScroll/Steps/Step2"]
 layout_mode = 2
 autowrap_mode = 3
-text = "每回合上限 +1。打出卡牌、移动和攻击都要花信用。"
+text = "Hover a card to read what it does, including Blitz and Guard. The gold pip is deploy cost; the next pip is operate cost. Attack and defense sit at the top of the card. The gold pip above your hand is current Credit / the turn cap, which grows by 1 each turn."
 
-[node name="Step3" type="VBoxContainer" parent="Center/Panel/Column/Steps"]
+[node name="Step3" type="VBoxContainer" parent="Center/Panel/Column/StepScroll/Steps"]
 layout_mode = 2
 theme_override_constants/separation = 2
 
-[node name="Heading" type="Label" parent="Center/Panel/Column/Steps/Step3"]
+[node name="Heading" type="Label" parent="Center/Panel/Column/StepScroll/Steps/Step3"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.91, 0.82, 0.55, 1)
 theme_override_font_sizes/font_size = 16
-text = "3  部署"
+text = "3  Deploy"
 
-[node name="Body" type="Label" parent="Center/Panel/Column/Steps/Step3"]
+[node name="Body" type="Label" parent="Center/Panel/Column/StepScroll/Steps/Step3"]
 layout_mode = 2
 autowrap_mode = 3
-text = "点金框手牌，再点你的支援线空位。没有额外目标时会立刻放下。"
+text = "The first turn has 1 Credit. Click a gold-bordered hand card then a Support slot, or drag it there. A unit deployed this turn cannot act yet, unless it has Blitz."
 
-[node name="Step4" type="VBoxContainer" parent="Center/Panel/Column/Steps"]
+[node name="Step4" type="VBoxContainer" parent="Center/Panel/Column/StepScroll/Steps"]
 layout_mode = 2
 theme_override_constants/separation = 2
 
-[node name="Heading" type="Label" parent="Center/Panel/Column/Steps/Step4"]
+[node name="Heading" type="Label" parent="Center/Panel/Column/StepScroll/Steps/Step4"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.91, 0.82, 0.55, 1)
 theme_override_font_sizes/font_size = 16
-text = "4  前线"
+text = "4  Frontline"
 
-[node name="Body" type="Label" parent="Center/Panel/Column/Steps/Step4"]
+[node name="Body" type="Label" parent="Center/Panel/Column/StepScroll/Steps/Step4"]
 layout_mode = 2
 autowrap_mode = 3
-text = "单位先到前线才能推进。步兵和坦克只能从前线打对方支援线或 HQ。"
+text = "Infantry and Tanks in Support can only hit the Frontline; from the Frontline they hit Support or HQ. Fighters can strike from Support. Some cards can hit Support, Frontline, or HQ from Support — hover to read. If the enemy holds the Frontline, you cannot enter."
 
-[node name="Step5" type="VBoxContainer" parent="Center/Panel/Column/Steps"]
+[node name="Step5" type="VBoxContainer" parent="Center/Panel/Column/StepScroll/Steps"]
 layout_mode = 2
 theme_override_constants/separation = 2
 
-[node name="Heading" type="Label" parent="Center/Panel/Column/Steps/Step5"]
+[node name="Heading" type="Label" parent="Center/Panel/Column/StepScroll/Steps/Step5"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.91, 0.82, 0.55, 1)
 theme_override_font_sizes/font_size = 16
-text = "5  攻击与回合"
+text = "5  Attack and turns"
 
-[node name="Body" type="Label" parent="Center/Panel/Column/Steps/Step5"]
+[node name="Body" type="Label" parent="Center/Panel/Column/StepScroll/Steps/Step5"]
 layout_mode = 2
 autowrap_mode = 3
-text = "选单位，再点高亮目标。没有可做的事时按 E 结束回合。"
+text = "Select a ready unit, then a highlighted target. Moving and attacking spend Credit. Each turn starts by drawing 1 and refilling Credit to the cap. Press E to end the turn when nothing else is legal; the cap grows by 1."
+
+[node name="Step6" type="VBoxContainer" parent="Center/Panel/Column/StepScroll/Steps"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="Heading" type="Label" parent="Center/Panel/Column/StepScroll/Steps/Step6"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.91, 0.82, 0.55, 1)
+theme_override_font_sizes/font_size = 16
+text = "6  Orders and Countermeasures"
+
+[node name="Body" type="Label" parent="Center/Panel/Column/StepScroll/Steps/Step6"]
+layout_mode = 2
+autowrap_mode = 3
+text = "Orders play on the turn you spend them. Countermeasures arm in hand first. Press ? during a match to reopen this sheet."
 
 [node name="CloseButton" type="Button" parent="Center/Panel/Column"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(160, 40)
 layout_mode = 2
 size_flags_horizontal = 4
-text = "知道了"
+text = "Got it"

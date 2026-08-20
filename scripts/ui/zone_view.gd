@@ -11,7 +11,7 @@ const CardViewScene = preload("res://scenes/ui/card_view.tscn")
 @export var zone_name := "support"
 @export var slot_count := 4
 @export var grid_cell_count := 5
-@export var slot_width := 108.0
+@export var slot_width := 80.0
 @export var slot_gap := 8.0
 var highlighted_slots: Array = []
 var highlighted_targets: Array = []
@@ -19,7 +19,9 @@ var input_locked := false
 var lane_caption := ""
 
 func _ready() -> void:
-	custom_minimum_size = Vector2(slot_width * grid_cell_count + slot_gap * (grid_cell_count - 1), 118.0)
+	var card_size: Vector2 = CardView.MODE_SIZES["battlefield"]
+	slot_width = card_size.x
+	custom_minimum_size = Vector2(_grid_width(), card_size.y)
 
 func render(cards: Array, hidden := false, card_resolver: Callable = Callable()) -> void:
 	for child in get_children():
@@ -35,7 +37,7 @@ func render(cards: Array, hidden := false, card_resolver: Callable = Callable())
 		child.free()
 	for index in range(slot_count):
 		var slot := _DropSlot.new()
-		slot.custom_minimum_size = Vector2(slot_width, size.y)
+		slot.custom_minimum_size = _slot_size()
 		slot.zone = zone_name
 		slot.slot_index = index
 		slot.input_locked = input_locked
@@ -79,34 +81,75 @@ func _notification(what: int) -> void:
 		queue_redraw()
 
 func _draw() -> void:
-	var grid_width: float = slot_width * grid_cell_count + slot_gap * (grid_cell_count - 1)
-	var left: float = floorf((size.x - grid_width) * 0.5)
 	if zone_name == "frontline":
-		draw_rect(Rect2(Vector2.ZERO, size), Color(0.10, 0.08, 0.05, 0.14), true)
-		BattlefieldChrome.draw_trench(self, Rect2(Vector2.ZERO, size))
-	for index in range(grid_cell_count):
-		var rect := Rect2(left + index * (slot_width + slot_gap), 0.0, slot_width, size.y)
-		var highlighted := index < slot_count and index in highlighted_slots
-		BattlefieldChrome.draw_slot_pad(self, rect, zone_name, highlighted)
+		var local_centers: Array = []
+		for center in grid_column_centers():
+			local_centers.append(center - global_position.x)
+		BattlefieldChrome.draw_frontline(self, Rect2(Vector2.ZERO, size), highlighted_slots, local_centers)
+	else:
+		for index in range(slot_count):
+			BattlefieldChrome.draw_slot_pad(self, _slot_cell(index), zone_name, index in highlighted_slots)
 	if not lane_caption.is_empty():
 		var font := get_theme_default_font()
 		if font != null:
-			draw_string(font, Vector2(8, 14), lane_caption, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0.91, 0.88, 0.78, 0.95))
-			draw_line(Vector2(8, 17), Vector2(minf(size.x - 12.0, 168.0), 17), Color(0.72, 0.62, 0.38, 0.45), 1.0)
+			var label_y := size.y * 0.5 - 16.0 if zone_name == "frontline" else maxf(12.0, _slot_cell(0).position.y - 4.0)
+			var label_x := 18.0 if zone_name == "frontline" else _slot_cell(0).position.x
+			draw_string(font, Vector2(label_x, label_y), lane_caption, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0.91, 0.88, 0.78, 0.95))
 
 func _layout_slots() -> void:
-	var grid_width: float = slot_width * grid_cell_count + slot_gap * (grid_cell_count - 1)
-	var left: float = floorf((size.x - grid_width) * 0.5)
 	var slots := _drop_slots()
 	for index in range(slots.size()):
 		var slot := slots[index] as _DropSlot
-		var cell_height := minf(118.0, size.y)
-		slot.position = Vector2(left + index * (slot_width + slot_gap), floorf((size.y - cell_height) * 0.5))
-		slot.size = Vector2(slot_width, cell_height)
+		var cell := _slot_cell(index)
+		slot.position = cell.position
+		slot.size = cell.size
 		if slot.get_child_count() > 0:
-			var card := slot.get_child(0) as Control
-			card.position = Vector2.ZERO
-			card.size = slot.size
+			_place_field_card(slot.get_child(0) as Control, cell.size)
+
+func _place_field_card(card: Control, slot_size: Vector2) -> void:
+	var card_size: Vector2 = CardView.MODE_SIZES["battlefield"]
+	if card is CardView:
+		card_size = CardView.MODE_SIZES.get((card as CardView).mode, card_size)
+	card.scale = Vector2.ONE
+	card.rotation_degrees = 0.0
+	card.custom_minimum_size = card_size
+	card.size = card_size
+	card.pivot_offset = card_size * 0.5
+	card.position = ((slot_size - card_size) * 0.5).floor()
+
+
+func field_card_rect(slot: Control) -> Rect2:
+	var index := _drop_slots().find(slot)
+	return field_card_rect_at(index if index >= 0 else 0)
+
+
+func field_card_rect_at(index: int) -> Rect2:
+	var card_size := CardView.MODE_SIZES["battlefield"]
+	var cell := _slot_cell(index)
+	var origin := global_position + cell.position + ((cell.size - card_size) * 0.5).floor()
+	return Rect2(origin, card_size)
+
+
+func _slot_size() -> Vector2:
+	return CardView.MODE_SIZES["battlefield"]
+
+
+func _grid_width() -> float:
+	return slot_width * grid_cell_count + slot_gap * (grid_cell_count - 1)
+
+
+func grid_left_x() -> float:
+	return global_position.x + floorf((size.x - _grid_width()) * 0.5)
+
+
+func _slot_cell(index: int) -> Rect2:
+	var cell := _slot_size()
+	var left: float = floorf((size.x - _grid_width()) * 0.5)
+	return Rect2(
+		Vector2(left + index * (slot_width + slot_gap), floorf((size.y - cell.y) * 0.5)),
+		cell
+	)
+
 
 func card_views() -> Array:
 	var cards: Array = []
@@ -125,13 +168,14 @@ func _drop_slots() -> Array:
 
 func grid_column_centers() -> Array[float]:
 	var result: Array[float] = []
-	var grid_width: float = slot_width * grid_cell_count + slot_gap * (grid_cell_count - 1)
-	var left: float = global_position.x + floorf((size.x - grid_width) * 0.5)
+	var left: float = grid_left_x()
 	for index in range(grid_cell_count):
 		result.append(snappedf(left + index * (slot_width + slot_gap) + slot_width * 0.5, 0.01))
 	return result
 
-func _slot_style(zone: String) -> StyleBoxFlat:
+func _slot_style(zone: String) -> StyleBox:
+	if zone == "frontline":
+		return StyleBoxEmpty.new()
 	return BattlefieldChrome.slot_pad(zone, false)
 
 func set_input_locked(locked: bool) -> void:
@@ -152,11 +196,14 @@ func _apply_highlights() -> void:
 	for index in range(slots.size()):
 		var slot: _DropSlot = slots[index]
 		var highlighted := index in highlighted_slots
-		var style := BattlefieldChrome.slot_pad(zone_name, highlighted)
-		var hover := BattlefieldChrome.slot_pad(zone_name, highlighted)
-		if highlighted:
-			hover.bg_color = Color(0.36, 0.30, 0.10, 0.42)
-			hover.border_color = Color("ffe08a")
+		var style := _slot_style(zone_name)
+		var hover := style
+		if zone_name != "frontline":
+			style = BattlefieldChrome.slot_pad(zone_name, highlighted)
+			hover = BattlefieldChrome.slot_pad(zone_name, highlighted)
+			if highlighted:
+				hover.bg_color = Color(0.36, 0.30, 0.10, 0.42)
+				hover.border_color = Color("ffe08a")
 		slot.add_theme_stylebox_override("normal", style)
 		slot.add_theme_stylebox_override("hover", hover)
 		slot.add_theme_stylebox_override("disabled", style)

@@ -18,6 +18,8 @@ const CardInstanceScript = preload("res://scripts/core/card_instance.gd")
 const CoreCards = preload("res://tests/fixtures/core_cards.gd")
 const AIPlayerScript = preload("res://scripts/ai/ai_player.gd")
 const LocaleScript = preload("res://scripts/ui/locale.gd")
+const HowToPlayScene = preload("res://scenes/ui/how_to_play_view.tscn")
+const OnboardingStore = preload("res://scripts/ui/onboarding_store.gd")
 
 
 class TestScreen:
@@ -38,14 +40,18 @@ class TestScreen:
 
 static func run(t) -> void:
 	_test_theme_and_screen_contract(t)
+	_test_sfx_maps_match_events(t)
+	await _test_how_to_play_covers_complete_rules(t)
+	await _test_first_match_opens_how_to(t)
 	_test_router_replaces_screen_and_initializes_payload(t)
 	_test_main_routes_play_to_mulligan_fallback(t)
 	_test_main_passes_selected_deck_to_mulligan(t)
 	_test_missing_scene_uses_fallback(t)
 	_test_content_errors_are_sorted_and_retryable(t)
-	_test_main_scene_exposes_screen_host(t)
+	await _test_main_scene_exposes_screen_host(t)
 	_test_action_builders(t)
 	_test_card_view_modes_and_geometry(t)
+	_test_card_inspect_lists_combat_and_ability(t)
 	_test_card_view_hidden_mode_redacts_data(t)
 	_test_card_view_press_and_drag_share_instance_id(t)
 	await _test_card_view_container_layout(t)
@@ -101,7 +107,9 @@ static func _test_public_card_art_is_safe(t) -> void:
 	definition["image_path"] = "res://game_assets/generated_cards/us-infantry.png"
 	var card = CardInstanceScript.from_definition(definition, "player", "p-art")
 	t.assert_eq(card.to_public_dict(true).get("image_path"), definition.image_path, "revealed public card exposes generated art path")
+	t.assert_eq(card.to_public_dict(true).get("description"), str(definition.get("description", "")), "revealed public card exposes description")
 	t.assert_true(not card.to_public_dict(false).has("image_path"), "hidden card exposes no art path")
+	t.assert_true(not card.to_public_dict(false).has("description"), "hidden card exposes no description")
 
 
 static func _test_runtime_views_load_public_card_art(t) -> void:
@@ -258,6 +266,11 @@ static func _test_rendered_opponent_hand_is_private(t) -> void:
 	view.render_snapshot(snapshot)
 	await Engine.get_main_loop().process_frame
 	t.assert_true("%s 2" % LocaleScript.ui("status.hand") in view.get_node("%OpponentLabel").text, "rendered opponent hand count matches snapshot")
+	t.assert_true(view.has_node("%OpponentHand"), "opponent hand fan exists")
+	t.assert_eq(view.get_node("%OpponentHand").get_child_count(), 2, "opponent hand fan shows one back per hidden card")
+	for card in view.get_node("%OpponentHand").get_children():
+		t.assert_eq(card.mode, "hidden", "opponent hand cards stay face-down")
+		t.assert_true(card.get_node("CardBack").visible, "opponent hand shows card backs")
 	for card in view.snapshot.players.opponent.hand:
 		t.assert_eq(card, {"hidden": true}, "rendered hidden card retains no private identifier")
 	var rendered_text := _visible_text(view)
@@ -293,6 +306,10 @@ static func _test_keyboard_actions(t) -> void:
 	match_view.model.select_source("p-front")
 	match_view._unhandled_input(_action_event("ui_cancel"))
 	t.assert_eq(match_view.model.selected_source_id, "", "ui_cancel clears match selection")
+	match_view._unhandled_input(_action_event("ui_cancel"))
+	t.assert_true(match_view.get_node("SettingsDialog").visible, "ui_cancel opens settings when nothing is selected")
+	match_view._unhandled_input(_action_event("ui_cancel"))
+	t.assert_true(not match_view.get_node("SettingsDialog").visible, "ui_cancel closes the settings overlay")
 	match_view.queue_free()
 	await Engine.get_main_loop().process_frame
 
@@ -406,12 +423,25 @@ static func _test_match_scene_contract_and_responsive_layout(t) -> void:
 		t.assert_true(player_front.modulate != opponent_front.modulate, "frontline ownership has clear opposing styles")
 		t.assert_eq(view.size, viewport_size, "match root exactly fits viewport")
 		var board_rect: Rect2 = view.get_node("%Board").get_global_rect()
+		t.assert_true(board_rect.size.x > viewport_size.x * 0.82, "board uses the full table without a log column")
+		t.assert_true(view.get_node("%TimelinePanel").get_parent().name == "LogOverlay", "log is an overlay, not a sidebar")
+		t.assert_eq(view.get_node("%TimelinePanel").visible, false, "empty log stays out of the table")
+		view.render_events([{"type": "turn_started", "player_id": "player"}])
+		await Engine.get_main_loop().process_frame
 		var timeline_rect: Rect2 = view.get_node("%TimelinePanel").get_global_rect()
-		t.assert_true(not board_rect.intersects(timeline_rect), "timeline does not overlap board")
+		t.assert_eq(view.get_node("%TimelinePanel").visible, true, "log appears after the first report")
+		t.assert_true(timeline_rect.size.x <= 280.0 and timeline_rect.size.y <= 220.0, "log stays a corner chip")
+		t.assert_true(timeline_rect.position.x > board_rect.position.x + board_rect.size.x * 0.55, "log floats on the right")
 		var hand_width: float = view.get_node("%PlayerHand").get_combined_minimum_size().x
 		var hand_viewport_width: float = view.get_node("%HandScroll").size.x
 		if viewport_size.x == 1024.0:
-			t.assert_true(hand_width > hand_viewport_width, "eight cards use horizontal scrolling at genuine 1024 width")
+			t.assert_true(view._hand_layout_width(8) <= hand_viewport_width + 8.0, "eight cards fit the full-width table at 1024")
+			view.render_snapshot(_match_snapshot(10))
+			await Engine.get_main_loop().process_frame
+			await Engine.get_main_loop().process_frame
+			hand_width = view.get_node("%PlayerHand").get_combined_minimum_size().x
+			hand_viewport_width = view.get_node("%HandScroll").size.x
+			t.assert_true(hand_width > hand_viewport_width, "a ten-card hand still scrolls at 1024")
 		root_control.free()
 
 
@@ -438,8 +468,11 @@ static func _test_match_concede_button_routes_concede_action(t) -> void:
 	view.render_snapshot(_match_snapshot())
 	var submitted: Array = []
 	view.action_requested.connect(func(action) -> void: submitted.append(action))
-	# Player turn, action phase: Concede must be interactive.
-	t.assert_eq(view.get_node("%ConcedeButton").disabled, false, "concede button is enabled on the player's action turn")
+	# Player turn, action phase: Concede lives in settings, not on the battlefield.
+	view._open_settings()
+	var settings = view.get_node("SettingsDialog")
+	t.assert_true(settings.get_node("%ConcedeButton").visible, "settings offers concede on the player's action turn")
+	settings.close()
 	view._on_concede_confirmed()
 	t.assert_eq(submitted.size(), 1, "confirming concede emits exactly one action")
 	t.assert_eq(submitted[0].type, "concede", "concede confirmation emits a concede action")
@@ -450,6 +483,9 @@ static func _test_match_concede_button_routes_concede_action(t) -> void:
 	var opponent_turn := _match_snapshot()
 	opponent_turn.active_player_id = "opponent"
 	view.render_snapshot(opponent_turn)
+	view._open_settings()
+	t.assert_true(not settings.get_node("%ConcedeButton").visible, "settings hides concede outside the player's turn")
+	settings.close()
 	view._on_concede_confirmed()
 	t.assert_eq(submitted.size(), 0, "concede confirmation is ignored outside the player's turn")
 	view.queue_free()
@@ -468,16 +504,18 @@ static func _test_card_visual_badges_fan_hover_and_ghost(t) -> void:
 	# Hand hover lifts and restores.
 	var base_y: float = card.position.y
 	card._set_hover_lift(true)
-	for frame in range(12): await Engine.get_main_loop().process_frame
+	if card._hover_tween != null and card._hover_tween.is_valid():
+		await card._hover_tween.finished
 	t.assert_true(card.position.y < base_y, "hover lifts hand cards")
 	t.assert_eq(card.z_index > 0, true, "hover raises hand card z order")
 	card._set_hover_lift(false)
-	for frame in range(12): await Engine.get_main_loop().process_frame
+	if card._hover_tween != null and card._hover_tween.is_valid():
+		await card._hover_tween.finished
 	t.assert_eq(card.position.y, base_y, "hover exit restores hand card position")
 	t.assert_eq(card.scale, Vector2.ONE, "hover exit restores hand card scale")
 	card.free()
 
-	# Hand fan: edge cards rotate opposite ways and the center sits lower.
+	# Hand fan: edge cards tilt out and the center sits higher, like a held hand.
 	var view = MatchViewScene.instantiate()
 	Engine.get_main_loop().root.add_child(view)
 	view.render_snapshot(_match_snapshot(3))
@@ -491,6 +529,7 @@ static func _test_card_visual_badges_fan_hover_and_ghost(t) -> void:
 	t.assert_eq(middle.rotation_degrees, 0.0, "fan center stays level")
 	t.assert_true(absf(first.rotation_degrees) - absf(middle.rotation_degrees) > 0.5, "fan rotation spreads across the hand")
 	t.assert_true(first.position.x < middle.position.x and middle.position.x < last.position.x, "fan cards advance left to right")
+	t.assert_true(middle.position.y < first.position.y and middle.position.y < last.position.y, "fan center sits higher than the edges")
 	t.assert_true(hand.custom_minimum_size.x > 300.0, "fan reserves horizontal scroll width")
 
 	# HQ view keeps the interaction surface of a card slot.
@@ -664,7 +703,8 @@ static func _test_theme_and_screen_contract(t) -> void:
 	t.assert_eq(theme.get_color("font_color", "Label"), Color("e8e1d2"), "approved warm text")
 	t.assert_true(theme.default_font != null, "theme ships a CJK-capable default font")
 	t.assert_true(ResourceLoader.exists("res://game_assets/ui/fonts/ui_cjk.ttf"), "CJK font is packaged")
-	t.assert_true(ResourceLoader.exists("res://game_assets/ui/boot_splash.png"), "boot splash is packaged")
+	t.assert_true(ResourceLoader.exists("res://game_assets/ui/title_cover.png"), "title cover is packaged")
+	t.assert_eq(str(ProjectSettings.get_setting("application/boot_splash/image")), "res://game_assets/ui/title_cover.png", "engine splash uses the title cover")
 	t.assert_true(theme.default_font.get_string_size("部署").x > 8, "Chinese UI text has a real advance")
 	for key in LocaleScript.STRINGS.keys():
 		var text := LocaleScript.ui(str(key))
@@ -672,6 +712,62 @@ static func _test_theme_and_screen_contract(t) -> void:
 			var code := text.unicode_at(index)
 			t.assert_true(ThemeFactory.UI_FONT.has_char(code) or theme.default_font.has_char(code), "font covers UI glyph in %s" % str(key))
 	t.assert_eq(Main.VALID_SCREENS, ["title", "deck_builder", "mulligan", "match", "result"], "complete flow")
+
+
+static func _test_sfx_maps_match_events(t) -> void:
+	t.assert_eq(SfxPlayer.cue_for("card_deployed"), "deploy", "deploy has a card slap")
+	t.assert_eq(SfxPlayer.cue_for("damage_dealt"), "damage", "hits share a damage cue")
+	t.assert_eq(SfxPlayer.cue_for("turn_started"), "turn", "turns have a cue")
+	t.assert_eq(SfxPlayer.cue_for("match_ended", {"winner_id": "player"}), "win", "player win has a cue")
+	t.assert_eq(SfxPlayer.cue_for("match_ended", {"winner_id": "opponent"}), "lose", "defeat has a cue")
+	t.assert_eq(SfxPlayer.cue_for("credit_refilled"), "", "credit refill stays silent")
+	var sfx := SfxPlayer.new()
+	Engine.get_main_loop().root.add_child(sfx)
+	SfxPlayer.play_event("card_deployed")
+	t.assert_true(sfx._streams.has("deploy"), "runtime builds the deploy stream")
+	sfx.queue_free()
+
+
+static func _test_how_to_play_covers_complete_rules(t) -> void:
+	var view = HowToPlayScene.instantiate()
+	Engine.get_main_loop().root.add_child(view)
+	await Engine.get_main_loop().process_frame
+	t.assert_eq(view.get_node("%Steps").get_child_count(), 6, "how-to teaches the full simple ruleset")
+	var sheet := ""
+	for index in range(6):
+		var step: Node = view.get_node("%Steps").get_child(index)
+		var heading := (step.get_node("Heading") as Label).text
+		var body := (step.get_node("Body") as Label).text
+		t.assert_eq(heading, LocaleScript.ui("how_to.%d.title" % (index + 1)), "how-to step %d heading" % (index + 1))
+		t.assert_eq(body, LocaleScript.ui("how_to.%d.body" % (index + 1)), "how-to step %d body" % (index + 1))
+		sheet += body
+	t.assert_true("to win" in sheet and "loss" in sheet, "how-to names both win and loss")
+	t.assert_true("Blitz" in sheet, "how-to names the Blitz exception")
+	t.assert_true("in Support can only hit the Frontline" in sheet, "how-to teaches Support-line infantry range")
+	t.assert_true("drawing 1" in sheet and "refilling Credit" in sheet, "how-to teaches the turn start")
+	t.assert_true("spend Credit" in sheet, "how-to teaches operate cost")
+	view.queue_free()
+	await Engine.get_main_loop().process_frame
+
+
+static func _test_first_match_opens_how_to(t) -> void:
+	var path := "user://test-howto-auto-open.json"
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	var main = MainScene.instantiate()
+	main.onboarding_store = OnboardingStore.new(path)
+	Engine.get_main_loop().root.add_child(main)
+	await Engine.get_main_loop().process_frame
+	main.show_screen("match", {"auto_how_to_play": true, "snapshot": _match_snapshot()})
+	await Engine.get_main_loop().process_frame
+	await Engine.get_main_loop().process_frame
+	var overlay := main.get_node_or_null("HowToPlayView")
+	t.assert_true(overlay != null, "first match opens the how-to sheet")
+	if overlay != null:
+		overlay._on_close()
+	t.assert_true(bool(main.onboarding_store.load().get("how_to_play_seen", false)), "closing how-to marks the sheet seen")
+	main.queue_free()
+	await Engine.get_main_loop().process_frame
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 
 
 static func _test_router_replaces_screen_and_initializes_payload(t) -> void:
@@ -765,7 +861,13 @@ static func _test_main_scene_exposes_screen_host(t) -> void:
 	var main := MainScene.instantiate()
 	t.assert_true(main.has_node("ScreenHost"), "main scene exposes ScreenHost path")
 	t.assert_true(main.get_node("ScreenHost") is Control, "ScreenHost is a Control")
-	main.free()
+	t.assert_true(main.has_node("%BootLoad"), "main scene keeps a title-art loader until ready")
+	Engine.get_main_loop().root.add_child(main)
+	await Engine.get_main_loop().process_frame
+	t.assert_true(not main.get_node("%BootLoad").visible, "loader hides once the title screen is up")
+	t.assert_eq(main.current_screen.name, "TitleView", "boot lands on the title screen")
+	main.queue_free()
+	await Engine.get_main_loop().process_frame
 
 
 static func _test_action_builders(t) -> void:
@@ -798,7 +900,7 @@ static func _test_card_view_modes_and_geometry(t) -> void:
 	var expected_sizes := {
 		"catalog": Vector2(180, 252),
 		"hand": Vector2(116, 162),
-		"battlefield": Vector2(108, 118),
+		"battlefield": Vector2(80, 112),
 	}
 	for mode in expected_sizes:
 		var view = CardViewScene.instantiate()
@@ -811,7 +913,36 @@ static func _test_card_view_modes_and_geometry(t) -> void:
 		if mode == "battlefield":
 			var title := view.get_node("Frame/Title") as Label
 			t.assert_true(title.get_theme_font_size("font_size") >= 10, "battlefield title is at least 10px")
+		if mode in ["hand", "battlefield"]:
+			t.assert_true(view.get_node("Frame/Stats").position.y <= 8.0, "%s combat numbers sit at the top" % mode)
+		if mode == "hand":
+			t.assert_true(view.get_node("Frame/Costs").position.y <= 8.0, "hand costs sit at the top")
 		view.free()
+
+
+static func _test_card_inspect_lists_combat_and_ability(t) -> void:
+	var view := CardViewScene.instantiate() as CardView
+	view.bind({
+		"title": "Supply Column",
+		"definition_id": "us-supply-column",
+		"description": "Infantry. Deploy: gain 1 Credit.",
+		"category": "Unit",
+		"unit_type": "Infantry",
+		"deployment_cost": 2,
+		"operation_cost": 1,
+		"attack": 1,
+		"defense": 3,
+		"keywords": [],
+	}, "hand")
+	var text := view.tooltip_text
+	t.assert_true(text.contains("Supply Column"), "inspect keeps the card title")
+	t.assert_true(text.contains(LocaleScript.ui("type.Infantry")), "inspect names the unit type")
+	t.assert_true(text.contains("%s 2" % LocaleScript.ui("inspect.deploy")), "inspect lists deploy cost")
+	t.assert_true(text.contains("%s 1" % LocaleScript.ui("inspect.operate")), "inspect lists operate cost")
+	t.assert_true(text.contains("%s 1" % LocaleScript.ui("inspect.attack")), "inspect lists attack")
+	t.assert_true(text.contains("%s 3" % LocaleScript.ui("inspect.defense")), "inspect lists defense")
+	t.assert_true(text.contains(LocaleScript.ui("card.us-supply-column")), "inspect lists the card ability")
+	view.free()
 
 
 static func _test_card_view_hidden_mode_redacts_data(t) -> void:
@@ -845,7 +976,7 @@ static func _test_card_view_container_layout(t) -> void:
 	var expected_sizes := {
 		"catalog": Vector2(180, 252),
 		"hand": Vector2(116, 162),
-		"battlefield": Vector2(108, 118),
+		"battlefield": Vector2(80, 112),
 		"hidden": Vector2(116, 162),
 	}
 	for mode in expected_sizes:
@@ -952,7 +1083,8 @@ static func _test_mulligan_scene_renders_and_confirms(t) -> void:
 	view.initialize(null, {"snapshot": {"players": {"player": {"hand": hand}}}, "difficulty": "hard"})
 	await Engine.get_main_loop().process_frame
 	t.assert_eq(view.get_node("%HandRow").get_child_count(), 2, "mulligan renders player hand with CardView")
-	t.assert_eq(view.get_node("%DifficultyLabel").text, "HARD", "mulligan displays selected difficulty")
+	t.assert_eq(view.get_node("%DifficultyLabel").text, LocaleScript.ui("builder.diff.hard"), "mulligan displays selected difficulty")
+	t.assert_eq(view.get_node("%TitleLabel").text, LocaleScript.ui("mulligan.title"), "mulligan titles the opening hand")
 	var first_card = view.get_node("%HandRow").get_child(0)
 	first_card.card_pressed.emit("p-01")
 	t.assert_true(first_card.button_pressed, "selected replacement has clear toggled state")

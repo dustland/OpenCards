@@ -12,6 +12,7 @@ var definition_id: String
 var instance_id: String
 var owner_id: String
 var title: String
+var description: String
 var image_path: String
 var category: String
 var unit_type: String
@@ -43,6 +44,7 @@ static func from_definition(definition: Dictionary, card_owner_id: String, card_
 	card.instance_id = card_instance_id
 	card.owner_id = card_owner_id
 	card.title = str(definition.get("title", ""))
+	card.description = str(definition.get("description", ""))
 	card.image_path = str(definition.get("image_path", ""))
 	card.category = str(definition.get("category", ""))
 	card.unit_type = str(definition.get("unit_type", definition.get("subtype", "")))
@@ -67,6 +69,7 @@ static func headquarters(
 	card.instance_id = card_instance_id
 	card.owner_id = card_owner_id
 	card.title = str(definition.get("title", "Headquarters"))
+	card.description = str(definition.get("description", ""))
 	card.image_path = str(definition.get("image_path", ""))
 	card.category = "Headquarters"
 	card.unit_type = ""
@@ -158,6 +161,7 @@ func to_public_dict(reveal: bool) -> Dictionary:
 		"owner_id": owner_id,
 		"definition_id": definition_id,
 		"title": title,
+		"description": description,
 		"image_path": image_path,
 		"category": category,
 		"unit_type": unit_type,

@@ -19,7 +19,7 @@ func _install_surfaces() -> void:
 	felt.name = "Felt"
 	felt.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	felt.set_anchors_preset(Control.PRESET_FULL_RECT)
-	felt.color = Color(0.10, 0.09, 0.06, 0.28)
+	felt.color = Color(0.10, 0.08, 0.05, 0.14)
 	felt.material = BattlefieldChrome.felt_material(0.08, 0.04)
 	add_child(felt)
 	var vignette := ColorRect.new()

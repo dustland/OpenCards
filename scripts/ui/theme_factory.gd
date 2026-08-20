@@ -33,8 +33,8 @@ static func create() -> Theme:
 	result.set_constant("separation", "HBoxContainer", 10)
 	result.set_stylebox("panel", "PanelContainer", _box(SURFACE, BRASS, 1, 4))
 	result.set_stylebox("normal", "Button", _box(SURFACE_RAISED, BRASS, 1, 4, 10))
-	result.set_stylebox("hover", "Button", _box(Color("39483a"), BRASS_BRIGHT, 1, 4, 10))
-	result.set_stylebox("pressed", "Button", _box(Color("1e2a22"), BRASS_BRIGHT, 2, 4, 10))
+	result.set_stylebox("hover", "Button", _box(Color("3d4c3c"), BRASS_BRIGHT, 1, 4, 10))
+	result.set_stylebox("pressed", "Button", _box(Color("1a241c"), Color("e2c36a"), 2, 4, 10))
 	result.set_stylebox("disabled", "Button", _box(Color("202820"), Color("596257"), 1, 4, 10))
 	result.set_stylebox("normal", "LineEdit", _box(Color("151e18"), Color("6f765f"), 1, 3, 8))
 	result.set_stylebox("focus", "LineEdit", _box(Color("151e18"), BRASS_BRIGHT, 2, 3, 8))
@@ -57,6 +57,7 @@ static func _box(fill: Color, border: Color, width: int, radius: int, padding: i
 	box.border_color = border
 	box.set_border_width_all(width)
 	box.set_corner_radius_all(radius)
+	box.anti_aliasing = true
 	box.content_margin_left = padding
 	box.content_margin_top = padding
 	box.content_margin_right = padding

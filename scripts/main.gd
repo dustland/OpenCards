@@ -10,6 +10,8 @@ const MatchControllerScript = preload("res://scripts/core/match_controller.gd")
 const AIPlayerScript = preload("res://scripts/ai/ai_player.gd")
 const OnboardingStoreScript = preload("res://scripts/ui/onboarding_store.gd")
 const HowToPlayScene = preload("res://scenes/ui/how_to_play_view.tscn")
+const SettingsDialogScene = preload("res://scenes/ui/settings_dialog.tscn")
+const LocaleScript = preload("res://scripts/ui/locale.gd")
 
 const VALID_SCREENS := ["title", "deck_builder", "mulligan", "match", "result"]
 const SCREEN_PATHS := {
@@ -49,9 +51,61 @@ var animation_preferences_path := "user://match-preferences.cfg"
 
 func _ready() -> void:
 	theme = ThemeFactory.create()
+	_install_sfx()
 	_load_animation_mode()
 	_match_rng.randomize()
+	_present_boot_load(true)
 	_validate_and_start()
+	_present_boot_load(false)
+
+
+func _install_sfx() -> void:
+	if has_node("SfxPlayer"):
+		return
+	var sfx := SfxPlayer.new()
+	sfx.name = "SfxPlayer"
+	add_child(sfx)
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("toggle_fullscreen"):
+		_toggle_fullscreen()
+		get_viewport().set_input_as_handled()
+
+
+func _input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_cancel") and _handle_back():
+		get_viewport().set_input_as_handled()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_GO_BACK_REQUEST:
+		if not _handle_back():
+			get_tree().quit()
+
+
+func _handle_back() -> bool:
+	var settings = get_node_or_null("SettingsDialog")
+	if settings != null and bool(settings.visible):
+		settings.close()
+		return true
+	var how_to = get_node_or_null("HowToPlayView")
+	if how_to != null:
+		how_to._on_close()
+		return true
+	if current_screen != null and current_screen.has_method("handle_back"):
+		return bool(current_screen.handle_back())
+	return false
+
+
+func _toggle_fullscreen() -> void:
+	if DisplayServer.get_name() == "headless":
+		return
+	var mode := DisplayServer.window_get_mode()
+	if mode == DisplayServer.WINDOW_MODE_FULLSCREEN or mode == DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN:
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+	else:
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
 
 
 func show_screen(screen_name: String, payload: Dictionary = {}) -> void:
@@ -81,17 +135,24 @@ func show_screen(screen_name: String, payload: Dictionary = {}) -> void:
 			current_screen.how_to_play_requested.connect(show_how_to_play)
 		if current_screen.has_signal("deck_editor_requested"):
 			current_screen.deck_editor_requested.connect(_on_deck_builder_requested)
+		if current_screen.has_signal("settings_requested"):
+			current_screen.settings_requested.connect(show_settings)
 	if screen_name == "deck_builder":
 		if current_screen.has_signal("play_requested"):
 			current_screen.play_requested.connect(_on_play_requested)
 		if current_screen.has_signal("home_requested"):
 			current_screen.home_requested.connect(_on_home_requested)
-	if screen_name == "mulligan" and current_screen.has_signal("confirm_requested"):
-		current_screen.confirm_requested.connect(_on_mulligan_confirmed)
+	if screen_name == "mulligan":
+		if current_screen.has_signal("confirm_requested"):
+			current_screen.confirm_requested.connect(_on_mulligan_confirmed)
+		if current_screen.has_signal("back_requested"):
+			current_screen.back_requested.connect(_on_home_requested)
 	if screen_name == "match" and current_screen.has_signal("action_requested"):
 		current_screen.action_requested.connect(submit_player_action)
 		if current_screen.has_signal("how_to_play_requested"):
 			current_screen.how_to_play_requested.connect(show_how_to_play)
+		if current_screen.has_signal("settings_requested"):
+			current_screen.settings_requested.connect(show_settings)
 		_refresh_match_view()
 		call_deferred("start_match_turn_flow")
 		if bool(payload.get("auto_how_to_play", false)) and not bool(onboarding_store.load().get("how_to_play_seen", false)):
@@ -127,6 +188,33 @@ func show_how_to_play() -> void:
 	add_child(overlay)
 	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	overlay.closed.connect(_on_how_to_play_closed)
+
+
+func show_settings(context: Dictionary = {}) -> void:
+	var overlay = get_node_or_null("SettingsDialog")
+	if overlay == null:
+		overlay = SettingsDialogScene.instantiate()
+		overlay.name = "SettingsDialog"
+		add_child(overlay)
+		overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		overlay.animation_mode_changed.connect(set_animation_mode)
+		overlay.concede_requested.connect(_on_settings_concede)
+		overlay.exit_requested.connect(_on_settings_exit)
+	var options := context.duplicate(true)
+	if current_screen != null and current_screen.has_method("can_concede"):
+		options["can_concede"] = current_screen.can_concede()
+	else:
+		options["can_concede"] = false
+	overlay.present(animation_mode, options)
+
+
+func _on_settings_concede() -> void:
+	if current_screen != null and current_screen.has_method("_on_concede_pressed"):
+		current_screen._on_concede_pressed()
+
+
+func _on_settings_exit() -> void:
+	get_tree().quit()
 
 
 func _on_how_to_play_closed() -> void:
@@ -413,6 +501,8 @@ func set_animation_mode(mode: String) -> void:
 	var config := ConfigFile.new()
 	config.set_value("match", "animation_mode", animation_mode)
 	config.save(animation_preferences_path)
+	if current_screen != null and current_screen.has_method("set_animation_mode"):
+		current_screen.set_animation_mode(animation_mode)
 
 
 func _load_animation_mode() -> void:
@@ -500,6 +590,14 @@ func _shipped_opponent_deck(player_deck_id: String) -> Dictionary:
 		if deck_value is Dictionary and str(deck_value.get("id", "")) != player_deck_id:
 			return (deck_value as Dictionary).duplicate(true)
 	return {}
+
+
+func _present_boot_load(visible: bool) -> void:
+	if not has_node("%BootLoad"):
+		return
+	%BootLoad.visible = visible
+	if visible and has_node("%LoadingLabel"):
+		%LoadingLabel.text = LocaleScript.ui("title.loading")
 
 
 func _validate_and_start() -> void:

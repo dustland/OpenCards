@@ -189,6 +189,7 @@ func _anonymous_card_state(owner_id: String, instance_id: String, zone: String) 
 		"instance_id": instance_id,
 		"owner_id": owner_id,
 		"title": "",
+		"description": "",
 		"category": "",
 		"unit_type": "",
 		"base_attack": 0,
@@ -453,6 +454,7 @@ func _apply_card_snapshot(card: CardInstance, data: Dictionary) -> void:
 	card.instance_id = data.instance_id
 	card.owner_id = data.owner_id
 	card.title = data.title
+	card.description = str(data.get("description", ""))
 	card.category = data.category
 	card.unit_type = data.unit_type
 	card.base_attack = data.base_attack
@@ -635,6 +637,8 @@ func _valid_card_snapshot(data) -> bool:
 	for field in ["definition_id", "instance_id", "owner_id", "title", "category", "unit_type", "zone"]:
 		if typeof(data.get(field, null)) != TYPE_STRING:
 			return false
+	if data.has("description") and typeof(data.get("description")) != TYPE_STRING:
+		return false
 	for field in ["base_attack", "current_attack", "base_defense", "current_defense", "deployment_cost", "operation_cost", "slot", "operations_used", "operation_chain", "deployed_turn", "countermeasure_activation_cost"]:
 		if typeof(data.get(field, null)) != TYPE_INT:
 			return false
@@ -834,6 +838,7 @@ func _card_state(card) -> Variant:
 		"instance_id": card.instance_id,
 		"owner_id": card.owner_id,
 		"title": card.title,
+		"description": card.description,
 		"category": card.category,
 		"unit_type": card.unit_type,
 		"base_attack": card.base_attack,

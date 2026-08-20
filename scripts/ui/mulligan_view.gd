@@ -2,6 +2,7 @@ class_name MulliganViewModel
 extends Control
 
 signal confirm_requested(selected_instance_ids: Array[String])
+signal back_requested
 
 const LocaleScript = preload("res://scripts/ui/locale.gd")
 const CardViewScene = preload("res://scenes/ui/card_view.tscn")
@@ -27,11 +28,19 @@ func initialize(_main, payload: Dictionary) -> void:
 	_rendered_result = false
 	%ConfirmButton.disabled = false
 	%StatusLabel.text = ""
-	%DifficultyLabel.text = str(payload.get("difficulty", "standard")).to_upper()
+	%DifficultyLabel.text = LocaleScript.difficulty(str(payload.get("difficulty", "standard")))
+	if has_node("%TitleLabel"):
+		%TitleLabel.text = LocaleScript.ui("mulligan.title")
+		%TitleLabel.add_theme_color_override("font_color", Color("f2dd9a"))
 	if has_node("%HelpLabel"):
 		%HelpLabel.text = LocaleScript.ui("mulligan.help")
 	if has_node("%ConfirmButton"):
 		%ConfirmButton.text = LocaleScript.ui("mulligan.confirm")
+		%ConfirmButton.add_theme_stylebox_override("normal", BattlefieldChrome.plaque(Color(0.28, 0.22, 0.10, 0.96), Color("e2c36a"), 2, 5, 10))
+	if has_node("%BackButton"):
+		%BackButton.text = LocaleScript.ui("mulligan.back")
+		if not %BackButton.pressed.is_connected(_on_back_pressed):
+			%BackButton.pressed.connect(_on_back_pressed)
 	_clear_hand()
 	for card_value in hand:
 		var card: Dictionary = card_value
@@ -103,6 +112,19 @@ func _on_card_pressed(instance_id: String) -> void:
 			card.position.y = -12.0 if card.button_pressed else 0.0
 			card.add_theme_stylebox_override("pressed", _selected_card_style() if card.button_pressed else card.get_theme_stylebox("normal"))
 			break
+
+
+func handle_back() -> bool:
+	if _locked:
+		return true
+	_on_back_pressed()
+	return true
+
+
+func _on_back_pressed() -> void:
+	if _locked:
+		return
+	back_requested.emit()
 
 
 func _on_confirm_pressed() -> void:

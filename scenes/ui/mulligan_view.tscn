@@ -3,12 +3,12 @@
 [ext_resource type="Script" path="res://scripts/ui/mulligan_view.gd" id="1"]
 
 [sub_resource type="StyleBoxFlat" id="Panel"]
-bg_color = Color(0.078, 0.102, 0.086, 0.96)
+bg_color = Color(0.07, 0.08, 0.06, 0.72)
 border_width_left = 1
 border_width_top = 1
 border_width_right = 1
 border_width_bottom = 1
-border_color = Color(0.38, 0.35, 0.23, 1)
+border_color = Color(0.62, 0.52, 0.32, 0.8)
 corner_radius_top_left = 4
 corner_radius_top_right = 4
 corner_radius_bottom_right = 4
@@ -43,7 +43,14 @@ theme_override_constants/separation = 12
 custom_minimum_size = Vector2(0, 52)
 layout_mode = 2
 
-[node name="Title" type="Label" parent="Margin/Page/Header"]
+[node name="BackButton" type="Button" parent="Margin/Page/Header"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(88, 36)
+layout_mode = 2
+text = "Back"
+
+[node name="TitleLabel" type="Label" parent="Margin/Page/Header"]
+unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 24
@@ -56,7 +63,7 @@ layout_mode = 2
 theme_override_colors/font_color = Color(0.79, 0.73, 0.51, 1)
 theme_override_font_sizes/font_size = 14
 autowrap_mode = 3
-text = "点不要的牌替换。先手 4 张、后手 5 张；换掉的牌回库后再抽。"
+text = "Tap cards to replace. First player 4, second player 5. Replaced cards return to the deck before you draw."
 
 [node name="DifficultyLabel" type="Label" parent="Margin/Page/Header"]
 unique_name_in_owner = true

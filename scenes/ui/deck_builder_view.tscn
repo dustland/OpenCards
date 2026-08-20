@@ -31,7 +31,8 @@ theme_override_constants/separation = 12
 custom_minimum_size = Vector2(0, 48)
 layout_mode = 2
 
-[node name="Title" type="Label" parent="Margin/Page/Header"]
+[node name="TitleLabel" type="Label" parent="Margin/Page/Header"]
+unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 24
@@ -42,7 +43,7 @@ vertical_alignment = 1
 unique_name_in_owner = true
 custom_minimum_size = Vector2(100, 40)
 layout_mode = 2
-text = "返回主页"
+text = "Home"
 
 [node name="DeckSelector" type="OptionButton" parent="Margin/Page/Header"]
 unique_name_in_owner = true
@@ -127,9 +128,10 @@ theme_override_constants/margin_bottom = 10
 [node name="Controls" type="VBoxContainer" parent="Margin/Page/Workspace/Filters/Margin"]
 layout_mode = 2
 
-[node name="Heading" type="Label" parent="Margin/Page/Workspace/Filters/Margin/Controls"]
+[node name="FilterHeading" type="Label" parent="Margin/Page/Workspace/Filters/Margin/Controls"]
+unique_name_in_owner = true
 layout_mode = 2
-text = "FILTERS"
+text = "Filters"
 
 [node name="Search" type="LineEdit" parent="Margin/Page/Workspace/Filters/Margin/Controls"]
 unique_name_in_owner = true
@@ -137,30 +139,35 @@ layout_mode = 2
 placeholder_text = "Search"
 
 [node name="NationLabel" type="Label" parent="Margin/Page/Workspace/Filters/Margin/Controls"]
+unique_name_in_owner = true
 layout_mode = 2
 text = "Nation"
 [node name="NationFilter" type="OptionButton" parent="Margin/Page/Workspace/Filters/Margin/Controls"]
 unique_name_in_owner = true
 layout_mode = 2
 [node name="CategoryLabel" type="Label" parent="Margin/Page/Workspace/Filters/Margin/Controls"]
+unique_name_in_owner = true
 layout_mode = 2
 text = "Category"
 [node name="CategoryFilter" type="OptionButton" parent="Margin/Page/Workspace/Filters/Margin/Controls"]
 unique_name_in_owner = true
 layout_mode = 2
 [node name="UnitTypeLabel" type="Label" parent="Margin/Page/Workspace/Filters/Margin/Controls"]
+unique_name_in_owner = true
 layout_mode = 2
 text = "Unit type"
 [node name="UnitTypeFilter" type="OptionButton" parent="Margin/Page/Workspace/Filters/Margin/Controls"]
 unique_name_in_owner = true
 layout_mode = 2
 [node name="RarityLabel" type="Label" parent="Margin/Page/Workspace/Filters/Margin/Controls"]
+unique_name_in_owner = true
 layout_mode = 2
 text = "Rarity"
 [node name="RarityFilter" type="OptionButton" parent="Margin/Page/Workspace/Filters/Margin/Controls"]
 unique_name_in_owner = true
 layout_mode = 2
 [node name="CostLabel" type="Label" parent="Margin/Page/Workspace/Filters/Margin/Controls"]
+unique_name_in_owner = true
 layout_mode = 2
 text = "Deployment cost"
 [node name="CostFilter" type="OptionButton" parent="Margin/Page/Workspace/Filters/Margin/Controls"]
@@ -201,9 +208,10 @@ theme_override_constants/margin_bottom = 10
 [node name="Content" type="VBoxContainer" parent="Margin/Page/Workspace/DeckPanel/Margin"]
 layout_mode = 2
 
-[node name="Heading" type="Label" parent="Margin/Page/Workspace/DeckPanel/Margin/Content"]
+[node name="DeckHeading" type="Label" parent="Margin/Page/Workspace/DeckPanel/Margin/Content"]
+unique_name_in_owner = true
 layout_mode = 2
-text = "DECK"
+text = "Deck"
 
 [node name="Summary" type="HBoxContainer" parent="Margin/Page/Workspace/DeckPanel/Margin/Content"]
 layout_mode = 2

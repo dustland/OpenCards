@@ -29,7 +29,7 @@ func _run_complete_flow(viewport_size: Vector2i) -> void:
 	root.add_child(app)
 	await _frames(3)
 	_check(app.current_screen != null, "Title is instantiated")
-	_check_controls(app.current_screen, viewport_size, ["%StartButton", "%HowToPlayButton", "%DeckEditorButton"])
+	_check_controls(app.current_screen, viewport_size, ["%StartButton", "%HowToPlayButton", "%DeckEditorButton", "%SettingsButton"])
 
 	var complete_deck: Dictionary = app.catalog.decks_by_id["us-starter"].duplicate(true)
 	app.selected_deck_id = str(complete_deck.get("id", ""))
@@ -75,7 +75,7 @@ func _run_complete_flow(viewport_size: Vector2i) -> void:
 	await _frames(1)
 	app.current_screen.deck_builder_requested.emit()
 	await _frames(2)
-	_check_controls(app.current_screen, viewport_size, ["%StartButton", "%HowToPlayButton", "%DeckEditorButton"])
+	_check_controls(app.current_screen, viewport_size, ["%StartButton", "%HowToPlayButton", "%DeckEditorButton", "%SettingsButton"])
 	_check(app.selected_deck_id == str(complete_deck.id) and app.difficulty == "easy", "Home return preserves preference")
 	app.queue_free()
 	await _frames(3)

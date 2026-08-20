@@ -52,8 +52,7 @@ static func derive(snapshot: Dictionary, legal_actions: Array, selection: Dictio
 	var next_type := _objective_priority_type(legal_actions, onboarding, snapshot)
 	match next_type:
 		"deploy_unit":
-			var credit := int(_player(snapshot).get("credit", 0))
-			result.objective = LocaleScript.ui("coach.deploy") % credit
+			result.objective = LocaleScript.ui("coach.deploy")
 			result.next_kind = "deploy"
 		"move_unit":
 			result.objective = LocaleScript.ui("coach.move")

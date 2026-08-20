@@ -224,11 +224,13 @@ func _check_match_coach_bounds(screen: Control, viewport_size: Vector2i, filenam
 	if not screen.has_node("%CoachObjective"):
 		return
 	var coach := screen.get_node("%CoachObjective") as Control
+	if not coach.visible:
+		return
 	var hand := screen.get_node("%HandScroll") as Control
 	var viewport_rect := Rect2(Vector2.ZERO, viewport_size)
 	_check(viewport_rect.encloses(coach.get_global_rect()), "%s coach stays inside viewport" % filename)
 	_check(coach.get_global_rect().end.y <= hand.get_global_rect().position.y, "%s coach does not overlap hand" % filename)
-	_check(coach.size.y == 36.0, "%s coach keeps fixed height" % filename)
+	_check(coach.size.y <= 24.0, "%s coach stays a short caption" % filename)
 
 
 func _frames(count: int) -> void:

@@ -53,7 +53,7 @@ static func slot_pad(zone: String, highlighted: bool) -> StyleBoxFlat:
 	if highlighted:
 		style.bg_color = Color(0.28, 0.22, 0.08, 0.20)
 		style.border_color = Color("f0cf55")
-		style.set_border_width_all(2)
+		style.set_border_width_all(3)
 	return style
 
 
@@ -95,22 +95,27 @@ static func draw_rivets(canvas: CanvasItem, rect: Rect2, color: Color, inset := 
 
 
 static func draw_trench(canvas: CanvasItem, rect: Rect2) -> void:
+	draw_frontline(canvas, rect, [], [])
+
+
+static func draw_frontline(canvas: CanvasItem, rect: Rect2, highlighted_slots: Array = [], column_centers: Array = []) -> void:
 	var mid_y := rect.position.y + rect.size.y * 0.5
-	var left := rect.position.x + 6.0
-	var right := rect.end.x - 6.0
-	canvas.draw_rect(Rect2(rect.position.x, mid_y - 8.0, rect.size.x, 16.0), Color(0.10, 0.08, 0.05, 0.34), true)
-	var points := PackedVector2Array()
-	var x := left
-	var crest := true
-	while x <= right:
-		points.append(Vector2(x, mid_y + (3.6 if crest else -3.6)))
-		x += 7.0
-		crest = not crest
-	if points.size() >= 2:
-		canvas.draw_polyline(points, Color(0.18, 0.14, 0.08, 0.55), 3.2, true)
-		canvas.draw_polyline(points, Color(0.78, 0.66, 0.38, 0.72), 1.5, true)
-	canvas.draw_line(Vector2(left, mid_y - 10.0), Vector2(right, mid_y - 10.0), Color(0.58, 0.50, 0.32, 0.28), 1.0)
-	canvas.draw_line(Vector2(left, mid_y + 10.0), Vector2(right, mid_y + 10.0), Color(0.58, 0.50, 0.32, 0.28), 1.0)
+	var left := rect.position.x + 18.0
+	var right := rect.end.x - 18.0
+	canvas.draw_rect(Rect2(rect.position.x, mid_y - 2.0, rect.size.x, 5.0), Color(0.06, 0.05, 0.03, 0.28), true)
+	canvas.draw_line(Vector2(left, mid_y + 1.0), Vector2(right, mid_y + 1.0), Color(0.10, 0.08, 0.05, 0.70), 2.0)
+	canvas.draw_line(Vector2(left, mid_y), Vector2(right, mid_y), Color(0.86, 0.72, 0.40, 0.92), 1.6)
+	for index in highlighted_slots:
+		if index < 0 or index >= column_centers.size():
+			continue
+		var x: float = float(column_centers[index]) - rect.position.x
+		var tick := PackedVector2Array([
+			Vector2(x, mid_y - 7.0),
+			Vector2(x + 5.0, mid_y),
+			Vector2(x, mid_y + 7.0),
+			Vector2(x - 5.0, mid_y),
+		])
+		canvas.draw_colored_polygon(tick, Color(0.96, 0.84, 0.42, 0.88))
 
 
 static func draw_slot_pad(canvas: CanvasItem, rect: Rect2, zone: String, highlighted: bool) -> void:

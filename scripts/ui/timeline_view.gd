@@ -35,9 +35,20 @@ func render_events(events: Array, titles: Dictionary = {}) -> void:
 		var label := Label.new()
 		label.text = _format_event(event)
 		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		label.add_theme_font_size_override("font_size", 12)
+		label.add_theme_color_override("font_color", Color(0.88, 0.84, 0.74, 0.9))
 		add_child(label)
 	while get_child_count() > MAX_ENTRIES:
 		get_child(0).free()
+	_scroll_to_latest()
+
+
+func _scroll_to_latest() -> void:
+	var scroll := get_parent() as ScrollContainer
+	if scroll == null or not is_inside_tree():
+		return
+	await get_tree().process_frame
+	scroll.scroll_vertical = int(scroll.get_v_scroll_bar().max_value)
 
 
 func _format_event(event: Dictionary) -> String:

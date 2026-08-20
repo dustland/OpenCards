@@ -14,8 +14,8 @@ const ART_SLUGS := [
 	"su-artillery-preparation",
 ]
 const UI_ASSETS := [
-	"badge_attack", "badge_cost", "badge_defense",
-	"battlefield_bg", "card_back", "hq_su", "hq_us",
+	"badge_attack", "badge_cost", "badge_defense", "badge_operate",
+	"battlefield_bg", "card_back", "hq_su", "hq_us", "title_cover",
 ]
 const REQUIRED_FILES := [
 	"project.binary",

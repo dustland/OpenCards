@@ -184,7 +184,8 @@ func _populate_controls() -> void:
 		var control := filter_data[0] as OptionButton
 		control.fit_to_longest_item = false
 		control.clear()
-		control.add_item("All")
+		control.add_item(LocaleScript.ui("builder.filter_all"))
+		control.set_item_metadata(0, "")
 		var values: Array[String] = []
 		for card_value in catalog.cards:
 			var value := str((card_value as Dictionary).get(filter_data[1], ""))
@@ -192,11 +193,12 @@ func _populate_controls() -> void:
 				values.append(value)
 		values.sort()
 		for value in values:
-			control.add_item(value)
+			control.add_item(LocaleScript.filter_value(str(filter_data[1]), value))
+			control.set_item_metadata(control.item_count - 1, value)
 	var costs := %CostFilter as OptionButton
 	costs.fit_to_longest_item = false
 	costs.clear()
-	costs.add_item("All costs", -1)
+	costs.add_item(LocaleScript.ui("builder.filter_cost"), -1)
 	for cost in range(0, 8):
 		costs.add_item(str(cost), cost)
 	for button in (%Difficulty as HBoxContainer).get_children():
@@ -207,7 +209,7 @@ func _populate_deck_selector() -> void:
 	var selector := %DeckSelector as OptionButton
 	selector.clear()
 	for deck_id in model.decks:
-		selector.add_item(str(deck_id).replace("-", " ").capitalize())
+		selector.add_item(LocaleScript.deck_title(str(deck_id)))
 		selector.set_item_metadata(selector.item_count - 1, deck_id)
 		if deck_id == model.selected_deck_id:
 			selector.select(selector.item_count - 1)
@@ -261,11 +263,11 @@ func _readiness_status(validation: Dictionary) -> String:
 	if not validation.valid:
 		var errors: Array = validation.get("errors", [])
 		if errors.is_empty():
-			return "Deck invalid - pick a starter from the Deck menu to start."
+			return LocaleScript.ui("builder.invalid")
 		return str(errors[0]).replace("_", " ").capitalize()
 	if not model.selected_deck_id.begins_with("user-") and model.card_count() == 40:
 		return LocaleScript.ui("builder.starter_ready")
-	return "Deck ready - %d valid cards." % model.card_count()
+	return LocaleScript.ui("builder.ready") % model.card_count()
 
 
 func _apply_onboarding_hint(state: Dictionary) -> void:
@@ -307,7 +309,8 @@ func _on_search_changed(value: String) -> void:
 
 func _on_option_selected(index: int, key: String, control_path: NodePath) -> void:
 	var control := get_node(control_path) as OptionButton
-	model.set_filter(key, "" if index == 0 else control.get_item_text(index))
+	var selected := "" if index == 0 else str(control.get_item_metadata(index))
+	model.set_filter(key, selected)
 	_refresh_catalog()
 
 
@@ -324,18 +327,43 @@ func _on_difficulty_pressed(value: String) -> void:
 
 func _on_save_pressed() -> void:
 	if store.save_user_decks(model.user_decks(), catalog.decks):
-		%Validation.text = "Saved"
+		%Validation.text = LocaleScript.ui("builder.saved")
 	else:
 		%Validation.text = store.last_error
 
 
 func _bind_chrome() -> void:
+	if has_node("%TitleLabel"):
+		%TitleLabel.text = LocaleScript.ui("builder.title")
+		%TitleLabel.add_theme_color_override("font_color", Color("f2dd9a"))
 	if has_node("%HomeButton"):
 		%HomeButton.text = LocaleScript.ui("builder.home")
 	if has_node("%PlayButton"):
 		%PlayButton.text = LocaleScript.ui("builder.play")
 	if has_node("%StarterHint"):
 		%StarterHint.text = LocaleScript.ui("builder.hint")
+	if has_node("%SaveButton"):
+		%SaveButton.text = LocaleScript.ui("builder.save")
+	if has_node("%FilterHeading"):
+		%FilterHeading.text = LocaleScript.ui("builder.filter_heading")
+	if has_node("%Search"):
+		%Search.placeholder_text = LocaleScript.ui("builder.search")
+	if has_node("%NationLabel"):
+		%NationLabel.text = LocaleScript.ui("builder.nation")
+	if has_node("%CategoryLabel"):
+		%CategoryLabel.text = LocaleScript.ui("builder.category")
+	if has_node("%UnitTypeLabel"):
+		%UnitTypeLabel.text = LocaleScript.ui("builder.unit_type")
+	if has_node("%RarityLabel"):
+		%RarityLabel.text = LocaleScript.ui("builder.rarity")
+	if has_node("%CostLabel"):
+		%CostLabel.text = LocaleScript.ui("builder.cost")
+	if has_node("%DeckHeading"):
+		%DeckHeading.text = LocaleScript.ui("builder.deck_heading")
+	for pair in [["Easy", "builder.diff.easy"], ["Standard", "builder.diff.standard"], ["Hard", "builder.diff.hard"]]:
+		var button := %Difficulty.get_node_or_null(str(pair[0])) as Button
+		if button != null:
+			button.text = LocaleScript.ui(str(pair[1]))
 
 
 func _on_home_pressed() -> void:
@@ -348,7 +376,15 @@ func _on_play_pressed() -> void:
 	play_requested.emit(model.selected_deck_id, difficulty)
 
 
+func handle_back() -> bool:
+	_on_home_pressed()
+	return true
+
+
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_accept") and not %PlayButton.disabled:
+	if event.is_action_pressed("ui_cancel"):
+		handle_back()
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("ui_accept") and not %PlayButton.disabled:
 		_on_play_pressed()
 		get_viewport().set_input_as_handled()
