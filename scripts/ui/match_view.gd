@@ -23,6 +23,8 @@ var _motion_director = CardMotionDirectorScript.new()
 var _card_registry: Dictionary = {}
 var _coach_pulse: Tween
 var _inspect_panel: PanelContainer
+var _inspect_title: Label
+var _inspect_meta: Label
 var _inspect_text: Label
 var _hovered_inspect: Dictionary = {}
 var _last_layout_size := Vector2.ZERO
@@ -32,6 +34,7 @@ var _aim_legal := false
 var _chrome_overlay: Control
 var _top_bar: Control
 var _player_bar: Control
+var _aim_overlay: Control
 
 signal how_to_play_requested
 
@@ -174,6 +177,7 @@ func _ready() -> void:
 	_style_table_chrome()
 	_bind_chrome()
 	_apply_responsive_layout()
+	_install_aim_overlay()
 
 
 func _apply_responsive_layout() -> void:
@@ -204,11 +208,7 @@ func _apply_responsive_layout() -> void:
 		var gap := get_node(path) as Control
 		gap.custom_minimum_size.y = row_gap
 		gap.size_flags_vertical = 0
-	%StatusLabel.size_flags_vertical = 0
 	_present_status(%StatusLabel.text)
-	%CoachObjective.custom_minimum_size.y = 22.0
-	%CoachObjective.size_flags_vertical = 0
-	%CoachObjective.clip_contents = true
 	_place_table_chrome()
 	var margin := get_node("Margin") as MarginContainer
 	margin.offset_left = 6.0 if compact else 8.0
@@ -251,6 +251,8 @@ func _place_table_chrome() -> void:
 	_place_top_bar()
 	_place_player_commands()
 	_place_lane_chips()
+	_place_hint_strip()
+	_place_inspect()
 
 
 func _dock_headquarters(hq: Control, grid: Control) -> void:
@@ -460,7 +462,12 @@ func deck_edge_rect(player_id: String) -> Rect2:
 	return Rect2(area.end.x - 18.0, area.position.y + area.size.y * 0.5 - 24.0, 36.0, 48.0)
 
 func command_area_rect() -> Rect2:
-	for path in ["%EndTurnButton", "%SettingsButton", "%ConfirmButton"]:
+	if _player_bar != null and _player_bar.size.x > 1.0:
+		return _player_bar.get_global_rect()
+	var chip := _credit_chip()
+	if chip != null and chip.is_visible_in_tree() and chip.size.x > 1.0:
+		return chip.get_global_rect()
+	for path in ["%EndTurnButton", "%ConfirmButton", "%SettingsButton"]:
 		if has_node(path):
 			var command := get_node(path) as Control
 			if command.visible and command.size.x > 1.0:
@@ -974,8 +981,8 @@ func _present_command(button: BaseButton, available: bool) -> void:
 
 func _present_status(text: String) -> void:
 	%StatusLabel.text = text
-	%StatusLabel.visible = not text.strip_edges().is_empty()
-	%StatusLabel.custom_minimum_size.y = 20.0 if %StatusLabel.visible else 0.0
+	_sync_hint_visibility()
+	_place_hint_strip()
 
 
 func _refresh_coach_objective() -> void:
@@ -985,13 +992,20 @@ func _refresh_coach_objective() -> void:
 	var idle := _rejection_message.is_empty() and str(_coach_state.get("next_kind", "")) in ["end_turn", "none", "opponent_turn"]
 	if idle:
 		next = ""
-	%CoachObjective.visible = not next.is_empty()
 	if %CoachObjective.text != next:
 		%CoachObjective.text = next
 		if not idle:
 			_pulse_coach()
 	%CoachObjective.tooltip_text = next
 	_style_coach_for_rejection(not _rejection_message.is_empty())
+	_sync_hint_visibility()
+	_place_hint_strip()
+
+
+func _sync_hint_visibility() -> void:
+	var coach_on: bool = not %CoachObjective.text.strip_edges().is_empty()
+	%CoachObjective.visible = coach_on
+	%StatusLabel.visible = not %StatusLabel.text.strip_edges().is_empty() and not coach_on
 
 
 func _apply_card_states() -> void:
@@ -1126,35 +1140,39 @@ func _draw() -> void:
 		draw_line(from, to, color, 2.2, true)
 		draw_circle(from, 3.2, color)
 		draw_circle(to, 2.4, color)
-	_draw_aim_arrow()
-
-
 func _sync_aiming() -> void:
 	var aiming := _source_can_aim()
 	set_process(aiming)
 	if not aiming:
 		_aim_legal = false
-		queue_redraw()
+		_redraw_aim()
 
 
 func _process(_delta: float) -> void:
 	if not _source_can_aim():
 		_aim_legal = false
 		set_process(false)
-		queue_redraw()
+		_redraw_aim()
 		return
 	_aim_legal = _legal_destination_under_mouse()
-	queue_redraw()
+	_redraw_aim()
+
+
+func _aim_source_global() -> Vector2:
+	var card = card_view(model.selected_source_id)
+	if card != null and is_instance_valid(card) and card.is_visible_in_tree():
+		return card.get_global_rect().get_center()
+	for hq in [%PlayerHQ, %OpponentHQ]:
+		if str(hq.card_data.get("instance_id", "")) == model.selected_source_id:
+			return hq.get_global_rect().get_center()
+	return Vector2.ZERO
 
 
 func _aim_source_point() -> Vector2:
-	var card = card_view(model.selected_source_id)
-	if card != null and is_instance_valid(card) and card.is_visible_in_tree():
-		return _to_link_space(card.get_global_rect().get_center())
-	for hq in [%PlayerHQ, %OpponentHQ]:
-		if str(hq.card_data.get("instance_id", "")) == model.selected_source_id:
-			return _to_link_space(hq.get_global_rect().get_center())
-	return Vector2.ZERO
+	var global := _aim_source_global()
+	if global == Vector2.ZERO:
+		return Vector2.ZERO
+	return _to_link_space(global)
 
 
 func _legal_destination_under_mouse() -> bool:
@@ -1170,11 +1188,41 @@ func _legal_destination_under_mouse() -> bool:
 	return false
 
 
+func _install_aim_overlay() -> void:
+	if _aim_overlay != null and is_instance_valid(_aim_overlay):
+		return
+	var overlay := _AimOverlay.new()
+	overlay.name = "AimOverlay"
+	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	overlay.z_index = 80
+	overlay.z_as_relative = false
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(overlay)
+	_aim_overlay = overlay
+
+
+func _aim_canvas() -> CanvasItem:
+	if _aim_overlay != null and is_instance_valid(_aim_overlay):
+		return _aim_overlay
+	return self
+
+
+func _redraw_aim() -> void:
+	var overlay := _aim_overlay
+	if overlay != null and is_instance_valid(overlay):
+		if overlay.get_parent() == self:
+			move_child(overlay, get_child_count() - 1)
+		overlay.queue_redraw()
+		return
+	queue_redraw()
+
+
 func _draw_aim_arrow() -> void:
 	if not _source_can_aim():
 		return
-	var from := _aim_source_point()
-	var to := _to_link_space(get_global_mouse_position())
+	var canvas := _aim_canvas()
+	var from := _to_canvas_space(canvas, _aim_source_global())
+	var to := _to_canvas_space(canvas, get_global_mouse_position())
 	if from == Vector2.ZERO or from.distance_to(to) < 18.0:
 		return
 	var color := Color(0.96, 0.84, 0.38, 0.96) if _aim_legal else Color(0.86, 0.74, 0.42, 0.78)
@@ -1189,16 +1237,23 @@ func _draw_aim_arrow() -> void:
 		var t := float(step) / 16.0
 		var inv := 1.0 - t
 		points.append(from * inv * inv + ctrl * 2.0 * inv * t + to * t * t)
-	draw_polyline(points, Color(0.08, 0.07, 0.04, 0.45), 5.2, true)
-	draw_polyline(points, color, 3.1, true)
+	canvas.draw_polyline(points, Color(0.08, 0.07, 0.04, 0.45), 5.2, true)
+	canvas.draw_polyline(points, color, 3.1, true)
 	var tip_dir := (to - points[14]).normalized()
 	var head := PackedVector2Array([
 		to,
 		to - tip_dir.rotated(0.48) * 16.0,
 		to - tip_dir.rotated(-0.48) * 16.0,
 	])
-	draw_colored_polygon(head, color)
-	draw_circle(from, 4.0, color)
+	canvas.draw_colored_polygon(head, color)
+	canvas.draw_circle(from, 4.0, color)
+
+
+class _AimOverlay extends Control:
+	func _draw() -> void:
+		var host := get_parent()
+		if host != null and host.has_method("_draw_aim_arrow"):
+			host._draw_aim_arrow()
 
 
 func _collect_guard_segments(zone, hq, segments: Array) -> void:
@@ -1223,7 +1278,11 @@ func _collect_guard_segments(zone, hq, segments: Array) -> void:
 
 
 func _to_link_space(point: Vector2) -> Vector2:
-	return get_global_transform().affine_inverse() * point
+	return _to_canvas_space(self, point)
+
+
+func _to_canvas_space(canvas: CanvasItem, point: Vector2) -> Vector2:
+	return canvas.get_global_transform().affine_inverse() * point
 
 
 func _card_has_keyword(card: Dictionary, name: String) -> bool:
@@ -1323,24 +1382,68 @@ func _place_before_log_gap(button: Control) -> void:
 func _install_inspect_panel() -> void:
 	if has_node("%InspectPanel"):
 		_inspect_panel = %InspectPanel
-		_inspect_text = _inspect_panel.get_node_or_null("InspectText") as Label
-		return
-	_inspect_panel = PanelContainer.new()
-	_inspect_panel.name = "InspectPanel"
-	_inspect_panel.unique_name_in_owner = true
+	else:
+		_inspect_panel = PanelContainer.new()
+		_inspect_panel.name = "InspectPanel"
+		_inspect_panel.unique_name_in_owner = true
+		add_child(_inspect_panel)
 	_inspect_panel.visible = false
 	_inspect_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_inspect_panel.z_index = 24
-	_inspect_panel.custom_minimum_size = Vector2(260, 0)
-	_inspect_panel.add_theme_stylebox_override("panel", BattlefieldChrome.plaque(Color(0.07, 0.08, 0.06, 0.94), Color(0.82, 0.70, 0.40, 0.92), 2, 6, 12))
-	_inspect_text = Label.new()
-	_inspect_text.name = "InspectText"
-	_inspect_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_inspect_text.add_theme_font_size_override("font_size", 14)
-	_inspect_text.add_theme_color_override("font_color", Color("f2e6c4"))
-	_inspect_text.custom_minimum_size = Vector2(240, 0)
-	_inspect_panel.add_child(_inspect_text)
-	add_child(_inspect_panel)
+	_inspect_panel.clip_contents = true
+	var column := _inspect_panel.get_node_or_null("Column") as VBoxContainer
+	if column == null:
+		column = VBoxContainer.new()
+		column.name = "Column"
+		column.add_theme_constant_override("separation", 2)
+		column.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		for child in _inspect_panel.get_children():
+			_inspect_panel.remove_child(child)
+			child.queue_free()
+		_inspect_panel.add_child(column)
+		_inspect_title = _make_inspect_label("InspectTitle", 14)
+		_inspect_meta = _make_inspect_label("InspectMeta", 11)
+		_inspect_text = _make_inspect_label("InspectText", 12)
+		column.add_child(_inspect_title)
+		column.add_child(_inspect_meta)
+		column.add_child(_inspect_text)
+	else:
+		_inspect_title = column.get_node_or_null("InspectTitle") as Label
+		_inspect_meta = column.get_node_or_null("InspectMeta") as Label
+		_inspect_text = column.get_node_or_null("InspectText") as Label
+	_style_inspect_panel()
+
+
+func _make_inspect_label(label_name: String, font_size: int) -> Label:
+	var label := Label.new()
+	label.name = label_name
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	label.add_theme_font_size_override("font_size", font_size)
+	return label
+
+
+func _style_inspect_panel() -> void:
+	if _inspect_panel == null:
+		return
+	_inspect_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_inspect_panel.clip_contents = true
+	_inspect_panel.custom_minimum_size = Vector2(220, 56)
+	_inspect_panel.add_theme_stylebox_override("panel", BattlefieldChrome.plaque(Color(0.06, 0.05, 0.04, 0.92), Color(0.58, 0.48, 0.30, 0.62), 1, 5, 10))
+	_inspect_panel.material = BattlefieldChrome.paper_material(0.06)
+	if _inspect_title != null:
+		_inspect_title.add_theme_color_override("font_color", Color(0.95, 0.88, 0.66, 0.98))
+		_inspect_title.add_theme_color_override("font_outline_color", Color(0.04, 0.03, 0.02, 0.80))
+		_inspect_title.add_theme_constant_override("outline_size", 3)
+	if _inspect_meta != null:
+		_inspect_meta.add_theme_color_override("font_color", Color(0.78, 0.70, 0.50, 0.90))
+		_inspect_meta.autowrap_mode = TextServer.AUTOWRAP_OFF
+	if _inspect_text != null:
+		_inspect_text.add_theme_color_override("font_color", Color(0.88, 0.82, 0.68, 0.94))
+		_inspect_text.add_theme_color_override("font_outline_color", Color(0.04, 0.03, 0.02, 0.70))
+		_inspect_text.add_theme_constant_override("outline_size", 2)
+		_inspect_text.custom_minimum_size = Vector2(200, 28)
 
 
 func _on_hq_inspected(hq: HqView) -> void:
@@ -1373,25 +1476,70 @@ func _refresh_inspect() -> void:
 	if data.is_empty() or bool(data.get("hidden", false)):
 		_inspect_panel.visible = false
 		return
-	var text := CardView.inspect_copy(data)
-	var hovered: Variant = card_view(str(data.get("instance_id", "")))
-	if hovered is CardView and not str((hovered as CardView).tooltip_text).is_empty():
-		text = (hovered as CardView).tooltip_text
+	var title: String = str(data.get("title", "")).strip_edges()
+	var meta: String = CardView.inspect_meta_line(data)
+	var body: String = CardView.inspect_body(data)
+	var reason: String = _inspect_reason(data)
+	if _inspect_title != null:
+		_inspect_title.text = title
+		_inspect_title.visible = not title.is_empty()
+	if _inspect_meta != null:
+		_inspect_meta.text = reason if not reason.is_empty() else meta
+		_inspect_meta.visible = not _inspect_meta.text.is_empty()
+		_inspect_meta.add_theme_color_override("font_color", Color("e8c36a") if not reason.is_empty() else Color(0.78, 0.70, 0.50, 0.90))
 	if _inspect_text != null:
-		_inspect_text.text = text
-	_inspect_panel.visible = not text.is_empty()
+		_inspect_text.text = body
+		_inspect_text.visible = not body.is_empty()
+	_inspect_panel.visible = not title.is_empty() or not meta.is_empty() or not body.is_empty()
 	_place_inspect()
+
+
+func _inspect_reason(data: Dictionary) -> String:
+	var hovered: Variant = card_view(str(data.get("instance_id", "")))
+	if not (hovered is CardView):
+		return ""
+	var tip := str((hovered as CardView).tooltip_text)
+	var copy := CardView.inspect_copy(data)
+	if tip.is_empty() or tip == copy or not tip.ends_with(copy):
+		return ""
+	return tip.substr(0, tip.length() - copy.length()).strip_edges()
+
+
+func _place_hint_strip() -> void:
+	if not is_node_ready() or not has_node("%HandScroll"):
+		return
+	var area := get_global_rect()
+	var hand_top: float = %HandScroll.get_global_rect().position.y
+	var height := 22.0
+	var width := minf(area.size.x * 0.56, 640.0)
+	var pos := Vector2(area.position.x + 14.0, hand_top - height - 2.0)
+	pos.x = clampf(pos.x, area.position.x + 8.0, area.end.x - width - 8.0)
+	pos.y = clampf(pos.y, area.position.y + 34.0, hand_top - height)
+	for label in [%StatusLabel, %CoachObjective]:
+		label.clip_contents = true
+		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		label.autowrap_mode = TextServer.AUTOWRAP_OFF
+		label.custom_minimum_size = Vector2(width, height)
+		label.size = Vector2(width, height)
+		label.global_position = pos
+		label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 
 
 func _place_inspect() -> void:
 	if _inspect_panel == null or not _inspect_panel.visible:
 		return
-	var panel_size := Vector2(maxf(_inspect_panel.get_combined_minimum_size().x, 260.0), maxf(_inspect_panel.get_combined_minimum_size().y, 72.0))
 	var area := get_global_rect()
 	var hand_top: float = %HandScroll.get_global_rect().position.y if has_node("%HandScroll") else area.end.y - HAND_STRIP_HEIGHT
-	var pos := Vector2(area.end.x - panel_size.x - 12.0, hand_top - panel_size.y - 8.0)
+	_inspect_panel.custom_minimum_size = Vector2(220, 56)
+	if _inspect_text != null:
+		_inspect_text.custom_minimum_size = Vector2(200, 28)
+	var wanted: Vector2 = _inspect_panel.get_combined_minimum_size()
+	var panel_size := Vector2(clampf(wanted.x, 220.0, minf(280.0, area.size.x * 0.30)), clampf(wanted.y, 56.0, 120.0))
+	_inspect_panel.size = panel_size
+	_inspect_panel.custom_minimum_size = panel_size
+	var pos := Vector2(area.end.x - panel_size.x - 12.0, hand_top - panel_size.y - 6.0)
 	pos.x = clampf(pos.x, area.position.x + 8.0, area.end.x - panel_size.x - 8.0)
-	pos.y = clampf(pos.y, area.position.y + 36.0, area.end.y - panel_size.y - 8.0)
+	pos.y = clampf(pos.y, area.position.y + 36.0, hand_top - panel_size.y)
 	_inspect_panel.global_position = pos
 
 
@@ -1404,16 +1552,22 @@ func _style_table_chrome() -> void:
 
 
 func _style_coach() -> void:
-	var empty := StyleBoxEmpty.new()
-	empty.content_margin_left = 2
-	empty.content_margin_right = 2
-	empty.content_margin_top = 2
-	empty.content_margin_bottom = 2
-	%CoachObjective.add_theme_stylebox_override("normal", empty)
-	%CoachObjective.add_theme_font_size_override("font_size", 14)
-	%CoachObjective.add_theme_color_override("font_color", Color(0.80, 0.72, 0.52, 0.86))
-	%CoachObjective.custom_minimum_size.y = 22
+	var rule := StyleBoxFlat.new()
+	rule.bg_color = Color(0.04, 0.03, 0.02, 0.28)
+	rule.border_color = Color(0.55, 0.46, 0.28, 0.28)
+	rule.border_width_top = 1
+	rule.content_margin_left = 4
+	rule.content_margin_right = 4
+	rule.content_margin_top = 2
+	rule.content_margin_bottom = 2
+	%CoachObjective.add_theme_stylebox_override("normal", rule)
+	%CoachObjective.add_theme_font_size_override("font_size", 13)
+	%CoachObjective.add_theme_color_override("font_color", Color(0.80, 0.72, 0.52, 0.88))
+	%CoachObjective.add_theme_color_override("font_outline_color", Color(0.05, 0.04, 0.03, 0.82))
+	%CoachObjective.add_theme_constant_override("outline_size", 3)
+	%CoachObjective.custom_minimum_size = Vector2(120, 22)
 	%CoachObjective.clip_contents = true
+	%CoachObjective.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	%CoachObjective.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 
 

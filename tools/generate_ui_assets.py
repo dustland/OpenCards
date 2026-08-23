@@ -423,12 +423,7 @@ def main() -> None:
            rim=(0.335, 0.40, 0.375), deep=(0.14, 0.19, 0.21), star_fill=(0.66, 0.62, 0.44))
     gen_hq(os.path.join(OUT_DIR, "hq_su.png"),
            rim=(0.47, 0.25, 0.19), deep=(0.185, 0.10, 0.085), star_fill=(0.78, 0.66, 0.36))
-    gen_badge(os.path.join(OUT_DIR, "badge_cost.png"),
-              top=(0.78, 0.65, 0.35), bottom=(0.46, 0.36, 0.17), shape="circle")
-    gen_badge(os.path.join(OUT_DIR, "badge_attack.png"),
-              top=(0.70, 0.34, 0.24), bottom=(0.34, 0.14, 0.10), shape="circle")
-    gen_badge(os.path.join(OUT_DIR, "badge_defense.png"),
-              top=(0.33, 0.48, 0.58), bottom=(0.13, 0.22, 0.31), shape="shield")
+    # Card number wells come from tools/_make_badges.py (empty recessed metal).
     print("generated UI assets in", os.path.abspath(OUT_DIR))
 
 

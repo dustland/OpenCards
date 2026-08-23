@@ -41,6 +41,12 @@ func _style_chrome() -> void:
 	%EyebrowLabel.add_theme_color_override("font_color", Color(0.90, 0.72, 0.38, 0.94))
 	%EyebrowLabel.add_theme_color_override("font_outline_color", Color(0.05, 0.03, 0.02, 0.88))
 	%EyebrowLabel.add_theme_constant_override("outline_size", 4)
+	%TitleLabel.visible = true
+	%TitleLabel.add_theme_font_override("font", _tracked_font(3))
+	%TitleLabel.add_theme_font_size_override("font_size", 44 if compact else 56)
+	%TitleLabel.add_theme_color_override("font_color", Color(0.97, 0.90, 0.68, 1))
+	%TitleLabel.add_theme_color_override("font_outline_color", Color(0.04, 0.03, 0.02, 0.90))
+	%TitleLabel.add_theme_constant_override("outline_size", 8)
 	%SubtitleLabel.add_theme_font_size_override("font_size", 15 if compact else 17)
 	%SubtitleLabel.add_theme_color_override("font_color", Color(0.90, 0.82, 0.66, 0.94))
 	%SubtitleLabel.add_theme_color_override("font_outline_color", Color(0.04, 0.03, 0.02, 0.80))
@@ -75,7 +81,7 @@ func _place_dock() -> void:
 	var compact := size.x > 0.0 and size.x <= 1000.0
 	var dock := %Dock as Control
 	var width := 420.0 if compact else 520.0
-	var height := 200.0 if compact else 220.0
+	var height := 268.0 if compact else 292.0
 	var left := 28.0 if compact else 48.0
 	var bottom := 28.0 if compact else 36.0
 	dock.offset_left = left

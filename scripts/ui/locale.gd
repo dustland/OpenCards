@@ -4,7 +4,7 @@ extends RefCounted
 const LANG := "en"
 
 const STRINGS := {
-	"app.title": {"zh": "OPENCARDS", "en": "OPENCARDS"},
+	"app.title": {"zh": "OpenCards", "en": "OpenCards"},
 	"app.eyebrow": {"zh": "西线战场", "en": "WESTERN FRONT"},
 	"app.subtitle": {"zh": "前线卡牌作战", "en": "Command the frontline"},
 	"title.start": {"zh": "开始对战", "en": "Start Battle"},
@@ -25,7 +25,7 @@ const STRINGS := {
 	"how_to.1.title": {"zh": "1  目标", "en": "1  Objective"},
 	"how_to.1.body": {"zh": "把敌方 HQ 的防御打到 0 就赢。你的 HQ 到 0 就失败。双方开局防御都是 20。", "en": "Reduce the enemy HQ to 0 defense to win. Your HQ reaching 0 is a loss. Both start at 20."},
 	"how_to.2.title": {"zh": "2  卡牌", "en": "2  The card"},
-	"how_to.2.body": {"zh": "移到牌上可知说明。闪击和守卫在说明中。牌顶左侧是打出费用和行动费用，右侧是攻击和防御。手牌上方金标是你当前的点 / 上限。每回合上限 +1。", "en": "Hover a card to read what it does, including Blitz and Guard. The gold pip is deploy cost; the next pip is operate cost. Attack and defense sit at the top of the card. The gold pip above your hand is current Credit / the turn cap, which grows by 1 each turn."},
+	"how_to.2.body": {"zh": "移到牌上可知说明。闪击和守卫在说明中。锈红边是进攻单位，钢青边是防守单位，暗金边是指令或反制。牌顶左侧是打出费用和行动费用，右侧是攻击和防御。手牌上方金标是你当前的点 / 上限。每回合上限 +1。", "en": "Hover a card to read what it does, including Blitz and Guard. Rust frames are strike units, steel frames hold the line, and gold frames are Orders or Countermeasures. The gold pip is deploy cost; the next pip is operate cost. Attack and defense sit at the top of the card. The gold pip above your hand is current Credit / the turn cap, which grows by 1 each turn."},
 	"how_to.card.deploy": {"zh": "部署费用：打出", "en": "Deploy cost"},
 	"how_to.card.operate": {"zh": "行动费用：再行动", "en": "Operate cost"},
 	"how_to.card.attack": {"zh": "攻击", "en": "Attack"},
@@ -173,6 +173,9 @@ const STRINGS := {
 	"type.Order": {"zh": "指令", "en": "Order"},
 	"type.Countermeasure": {"zh": "反制", "en": "Countermeasure"},
 	"type.Headquarters": {"zh": "HQ", "en": "Headquarters"},
+	"role.strike": {"zh": "进攻", "en": "Strike"},
+	"role.hold": {"zh": "防守", "en": "Hold"},
+	"role.effect": {"zh": "效果", "en": "Effect"},
 	"inspect.deploy": {"zh": "打出", "en": "Deploy"},
 	"inspect.operate": {"zh": "行动", "en": "Operate"},
 	"inspect.attack": {"zh": "攻击", "en": "Attack"},

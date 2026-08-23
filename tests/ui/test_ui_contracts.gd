@@ -52,6 +52,7 @@ static func run(t) -> void:
 	_test_action_builders(t)
 	_test_card_view_modes_and_geometry(t)
 	_test_card_inspect_lists_combat_and_ability(t)
+	_test_card_roles_use_distinct_colors(t)
 	_test_card_view_hidden_mode_redacts_data(t)
 	_test_card_view_press_and_drag_share_instance_id(t)
 	await _test_card_view_container_layout(t)
@@ -866,6 +867,8 @@ static func _test_main_scene_exposes_screen_host(t) -> void:
 	await Engine.get_main_loop().process_frame
 	t.assert_true(not main.get_node("%BootLoad").visible, "loader hides once the title screen is up")
 	t.assert_eq(main.current_screen.name, "TitleView", "boot lands on the title screen")
+	t.assert_true(main.current_screen.get_node("%TitleLabel").visible, "title shows the game name")
+	t.assert_eq(main.current_screen.get_node("%TitleLabel").text, "OpenCards", "title names the game")
 	main.queue_free()
 	await Engine.get_main_loop().process_frame
 
@@ -942,7 +945,45 @@ static func _test_card_inspect_lists_combat_and_ability(t) -> void:
 	t.assert_true(text.contains("%s 1" % LocaleScript.ui("inspect.attack")), "inspect lists attack")
 	t.assert_true(text.contains("%s 3" % LocaleScript.ui("inspect.defense")), "inspect lists defense")
 	t.assert_true(text.contains(LocaleScript.ui("card.us-supply-column")), "inspect lists the card ability")
+	t.assert_true(LocaleScript.ui("role.hold") in CardView.inspect_meta_line(view.card_data), "inspect meta names the hold role")
+	t.assert_true("Infantry" in CardView.inspect_meta_line(view.card_data), "inspect meta keeps the unit type")
+	t.assert_true(LocaleScript.ui("card.us-supply-column") in CardView.inspect_body(view.card_data), "inspect body keeps the ability")
 	view.free()
+
+
+static func _test_card_roles_use_distinct_colors(t) -> void:
+	var cases: Array = [
+		[{"title": "Rifle", "category": "Unit", "unit_type": "Infantry", "attack": 1, "defense": 2, "keywords": ["Guard"]}, "hold"],
+		[{"title": "Sherman", "category": "Unit", "unit_type": "Tank", "attack": 4, "defense": 5, "keywords": ["Fury"]}, "strike"],
+		[{"title": "Resupply", "category": "Order", "unit_type": "", "attack": 0, "defense": 0, "keywords": []}, "effect"],
+		[{"title": "Watch", "category": "Countermeasure", "unit_type": "", "attack": 0, "defense": 0, "keywords": []}, "effect"],
+		[{"title": "HQ", "category": "Headquarters", "unit_type": "", "attack": 0, "defense": 20, "keywords": []}, "hold"],
+		[{"title": "Rangers", "category": "Unit", "unit_type": "Infantry", "attack": 3, "defense": 3, "keywords": ["Blitz"]}, "strike"],
+		[{"title": "Raiders", "category": "Unit", "unit_type": "Infantry", "attack": 3, "defense": 2, "keywords": []}, "strike"],
+	]
+	var seen_borders: Array[Color] = []
+	for case in cases:
+		var data: Dictionary = case[0]
+		var role: String = case[1]
+		t.assert_eq(CardView.card_role(data), role, "%s classifies as %s" % [data.get("title"), role])
+		var palette: Dictionary = CardView.role_palette(data)
+		var view = CardViewScene.instantiate()
+		view.bind(data, "catalog")
+		t.assert_eq(view.get_node("Frame/Type").text, LocaleScript.ui("role.%s" % role), "%s catalog names the role" % data.get("title"))
+		t.assert_eq(view.get_node("Frame/CategoryStrip").color, palette["strip"], "%s strip uses the role color" % data.get("title"))
+		var style := view.get_theme_stylebox("normal") as StyleBoxFlat
+		t.assert_eq(style.border_color, palette["border"], "%s frame uses the role color" % data.get("title"))
+		t.assert_true(LocaleScript.ui("role.%s" % role) in CardView.inspect_meta_line(data), "%s inspect names the role" % data.get("title"))
+		view.free()
+		var hand = CardViewScene.instantiate()
+		hand.bind(data, "hand")
+		t.assert_eq(hand.get_node("Frame/Type").text, LocaleScript.ui("role.%s" % role), "%s hand names the role" % data.get("title"))
+		t.assert_true(hand.get_node("Frame/Type").visible, "%s hand shows the role" % data.get("title"))
+		hand.free()
+		var border: Color = palette["border"]
+		if not border in seen_borders:
+			seen_borders.append(border)
+	t.assert_eq(seen_borders.size(), 3, "strike, hold, and effect use three different frame colors")
 
 
 static func _test_card_view_hidden_mode_redacts_data(t) -> void:
@@ -1019,10 +1060,23 @@ static func _assert_visible_layout(t, view: Control, mode: String) -> void:
 		for other_index in range(index + 1, visible_controls.size()):
 			var first := visible_controls[index]
 			var second := visible_controls[other_index]
+			if _is_art_under_chrome(first, second):
+				continue
 			t.assert_true(
 				not first.get_global_rect().intersects(second.get_global_rect()),
 				"%s %s does not overlap %s" % [mode, first.get_path(), second.get_path()]
 			)
+
+
+static func _is_art_under_chrome(first: Control, second: Control) -> bool:
+	var paths := [str(first.get_path()), str(second.get_path())]
+	var has_art := paths.any(func(path: String) -> bool: return path.ends_with("/Artwork"))
+	if not has_art:
+		return false
+	for needle in ["/Title", "/Type", "/Costs/", "/Stats/", "/Keywords", "/Description"]:
+		if paths.any(func(path: String) -> bool: return needle in path):
+			return true
+	return false
 
 
 static func _card_data() -> Dictionary:

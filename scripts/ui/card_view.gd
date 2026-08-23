@@ -7,6 +7,7 @@ signal card_dropped(instance_id: String, target: Variant)
 signal inspected(data: Dictionary)
 
 const LocaleScript = preload("res://scripts/ui/locale.gd")
+const ThemeFactoryScript = preload("res://scripts/ui/theme_factory.gd")
 
 const MODE_SIZES := {
 	"catalog": Vector2(180, 252),
@@ -20,6 +21,30 @@ const RARITY_PIP_COLORS := {
 	"Limited": Color("6fa3c4"),
 	"Special": Color("b084c9"),
 	"Elite": Color("e3c35c"),
+}
+
+const ROLE_STRIKE := "strike"
+const ROLE_HOLD := "hold"
+const ROLE_EFFECT := "effect"
+const ROLE_PALETTES := {
+	"strike": {
+		"fill": Color(0.16, 0.08, 0.06),
+		"border": Color(0.80, 0.42, 0.28),
+		"plate": Color(0.38, 0.14, 0.09, 0.78),
+		"strip": Color(0.84, 0.40, 0.24),
+	},
+	"hold": {
+		"fill": Color(0.07, 0.10, 0.12),
+		"border": Color(0.40, 0.60, 0.70),
+		"plate": Color(0.10, 0.16, 0.20, 0.78),
+		"strip": Color(0.44, 0.64, 0.74),
+	},
+	"effect": {
+		"fill": Color(0.13, 0.10, 0.05),
+		"border": Color(0.80, 0.66, 0.32),
+		"plate": Color(0.28, 0.21, 0.08, 0.78),
+		"strip": Color(0.88, 0.72, 0.36),
+	},
 }
 
 var card_data: Dictionary = {}
@@ -84,23 +109,20 @@ func set_action_state(state: String, reason: String = "") -> void:
 	_stop_legal_pulse()
 	if card_data.get("hidden", false):
 		return
-	var border := Color("a88f58")
-	var owner := str(card_data.get("owner_id", ""))
-	var nation := str(card_data.get("nation", ""))
-	if owner == "player" or nation == "UnitedStates":
-		border = Color("7899ad")
-	elif owner == "opponent" or nation == "SovietUnion":
-		border = Color("a96d5e")
+	var palette: Dictionary = role_palette(card_data)
+	var fill: Color = palette["fill"]
+	var border: Color = palette["border"]
 	match state:
 		"legal":
 			border = Color("e1c45a")
 		"selected":
 			border = Color("fff0a0")
 		"unavailable":
-			border = Color("59615d")
+			fill = fill.darkened(0.18)
+			border = Color(0.36, 0.36, 0.34)
 	var glow := state in ["legal", "selected"]
-	add_theme_stylebox_override("normal", _card_style(Color("171d1a") if state == "unavailable" else Color("1b241e"), border, 4 if glow else 2))
-	add_theme_stylebox_override("hover", _card_style(Color("202824"), border.lightened(0.12), 5 if glow else 3))
+	add_theme_stylebox_override("normal", _card_style(fill if state != "unavailable" else Color("171616"), border, 4 if glow else 2))
+	add_theme_stylebox_override("hover", _card_style(fill.lightened(0.08), border.lightened(0.12), 5 if glow else 3))
 	self_modulate = Color(0.68, 0.68, 0.68, 1.0) if state == "unavailable" else Color.WHITE
 	if state == "legal":
 		_start_legal_pulse()
@@ -225,7 +247,7 @@ func _apply_mode_layout() -> void:
 	frame.clip_contents = false
 	artwork.visible = mode != "hidden"
 	title.visible = mode != "hidden"
-	type.visible = mode == "catalog"
+	type.visible = mode in ["catalog", "hand"]
 	costs.visible = mode in ["catalog", "hand"]
 	stats.visible = mode != "hidden"
 	description.visible = mode == "catalog"
@@ -235,47 +257,96 @@ func _apply_mode_layout() -> void:
 	rarity_pip.visible = mode == "catalog"
 	get_node("Frame/Costs/Deployment").visible = mode != "battlefield"
 	get_node("Frame/Costs/Operation").visible = mode != "battlefield"
-	get_node("Frame/Stats/Attack").custom_minimum_size = Vector2(20, 20) if mode == "battlefield" else Vector2(22, 21)
-	get_node("Frame/Stats/Defense").custom_minimum_size = Vector2(20, 20) if mode == "battlefield" else Vector2(22, 21)
-	costs.add_theme_constant_override("separation", 2 if mode != "catalog" else 4)
-	stats.add_theme_constant_override("separation", 3 if mode == "battlefield" else 4)
+	var pip := 20.0 if mode == "battlefield" else 22.0
+	var pip_font := 11 if mode == "battlefield" else 13 if mode == "catalog" else 12
+	_style_pip(get_node("Frame/Costs/Deployment"), pip, pip_font)
+	_style_pip(get_node("Frame/Costs/Operation"), pip, pip_font)
+	_style_pip(get_node("Frame/Stats/Attack"), pip, pip_font)
+	_style_pip(get_node("Frame/Stats/Defense"), pip, pip_font)
+	costs.add_theme_constant_override("separation", 2)
+	stats.add_theme_constant_override("separation", 2)
 	stats.alignment = BoxContainer.ALIGNMENT_END
+	var gap := get_node_or_null("Frame/Stats/Gap") as Control
+	if gap != null:
+		gap.visible = mode == "battlefield"
+		gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 	match mode:
 		"catalog":
 			title.add_theme_font_size_override("font_size", 13)
-			type.add_theme_font_size_override("font_size", 13)
-			_set_rect(title, 5, 3, 137, 27)
-			_set_rect(type, 141, 3, 167, 27)
+			type.add_theme_font_size_override("font_size", 11)
+			type.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+			_set_rect(title, 5, 3, 116, 27)
+			_set_rect(type, 118, 3, 167, 27)
 			_set_rect(title_banner, 2, 1, 170, 29)
-			_set_rect(costs, 5, 31, 49, 52)
-			_set_rect(stats, 108, 31, 166, 52)
-			_set_rect(artwork, 5, 56, 167, 128)
-			_set_rect(artwork_trim, 5, 56, 167, 128)
+			_set_rect(artwork, 5, 30, 167, 128)
+			_set_rect(artwork_trim, 5, 30, 167, 128)
+			_set_rect(costs, 5, 31, 53, 55)
+			_set_rect(stats, 119, 31, 167, 55)
 			_set_rect(description, 6, 132, 166, 190)
 			_set_rect(keywords, 6, 194, 166, 220)
-			_set_rect(category_strip, 0, 0, 3, 244)
+			_set_rect(category_strip, 0, 0, 5, 244)
 			_set_rect(rarity_pip, 156, 3, 168, 9)
 		"hand":
-			_set_rect(costs, 3, 2, 49, 24)
-			_set_rect(stats, 55, 2, 105, 24)
-			_set_rect(title, 4, 25, 104, 41)
-			_set_rect(title_banner, 2, 1, 106, 42)
-			_set_rect(artwork, 4, 43, 104, 150)
-			_set_rect(artwork_trim, 4, 43, 104, 150)
-			_set_rect(type, 4, 16, 54, 28)
+			_set_rect(artwork, 3, 2, 105, 150)
+			_set_rect(artwork_trim, 3, 2, 105, 150)
+			_set_rect(costs, 2, 2, 50, 26)
+			_set_rect(stats, 58, 2, 106, 26)
+			type.add_theme_font_size_override("font_size", 8)
+			type.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+			_set_rect(title, 4, 27, 66, 43)
+			_set_rect(title_banner, 3, 26, 105, 44)
+			_set_rect(type, 66, 27, 104, 43)
 			_set_rect(keywords, 56, 16, 104, 28)
-			_set_rect(category_strip, 0, 0, 3, 154)
+			_set_rect(category_strip, 0, 0, 5, 154)
 		"battlefield":
 			type.add_theme_font_size_override("font_size", 8)
-			_set_rect(stats, 23, 2, 69, 22)
-			_set_rect(title, 3, 26, 69, 40)
-			_set_rect(title_banner, 2, 1, 70, 41)
-			_set_rect(artwork, 3, 42, 69, 104)
-			_set_rect(artwork_trim, 3, 42, 69, 104)
+			stats.alignment = BoxContainer.ALIGNMENT_BEGIN
+			_set_rect(artwork, 2, 2, 70, 102)
+			_set_rect(artwork_trim, 2, 2, 70, 102)
+			_set_rect(stats, 2, 2, 70, 24)
+			_set_rect(title, 3, 25, 69, 40)
+			_set_rect(title_banner, 2, 24, 70, 41)
 			_set_rect(type, 3, 88, 69, 102)
 			_set_rect(costs, 3, 81, 23, 104)
-			_set_rect(category_strip, 0, 0, 3, 104)
+			_set_rect(category_strip, 0, 0, 5, 104)
+	costs.clip_contents = false
+	stats.clip_contents = false
+	_style_nameplate(title, title_banner, type, description, keywords)
+
+
+func _style_nameplate(title: Label, banner: Control, type: Label, description: Control, keywords: Control) -> void:
+	var plate := StyleBoxFlat.new()
+	plate.bg_color = Color(0.05, 0.05, 0.04, 0.78 if mode == "catalog" else 0.62)
+	plate.border_color = Color(0.55, 0.46, 0.28, 0.55)
+	plate.border_width_bottom = 1
+	plate.set_corner_radius_all(2)
+	plate.anti_aliasing = true
+	if banner is Panel:
+		(banner as Panel).add_theme_stylebox_override("panel", plate)
+	title.add_theme_color_override("font_color", Color(0.95, 0.89, 0.72, 0.98))
+	title.add_theme_color_override("font_outline_color", Color(0.05, 0.04, 0.03, 0.88))
+	title.add_theme_constant_override("outline_size", 3)
+	type.add_theme_color_override("font_color", Color(0.86, 0.78, 0.58, 0.92))
+	type.add_theme_color_override("font_outline_color", Color(0.05, 0.04, 0.03, 0.80))
+	type.add_theme_constant_override("outline_size", 2)
+	if description is Label:
+		var body := description as Label
+		body.add_theme_color_override("font_color", Color(0.80, 0.74, 0.62, 0.94))
+		body.add_theme_font_size_override("font_size", 11)
+		if mode == "catalog":
+			var paper := StyleBoxFlat.new()
+			paper.bg_color = Color(0.05, 0.04, 0.03, 0.72)
+			paper.border_color = Color(0.42, 0.34, 0.20, 0.40)
+			paper.border_width_top = 1
+			paper.content_margin_left = 4
+			paper.content_margin_right = 4
+			paper.content_margin_top = 3
+			paper.content_margin_bottom = 2
+			paper.set_corner_radius_all(2)
+			body.add_theme_stylebox_override("normal", paper)
+	if keywords is Label:
+		(keywords as Label).add_theme_color_override("font_color", Color(0.78, 0.68, 0.42, 0.90))
 
 
 func _fit_title(value: String) -> void:
@@ -291,28 +362,22 @@ func _fit_title(value: String) -> void:
 
 
 func _apply_semantic_accents(data: Dictionary) -> void:
-	var category := str(data.get("category", "Unit"))
-	var category_colors := {
-		"Unit": Color("8fa06f"),
-		"Order": Color("c7a15e"),
-		"Countermeasure": Color("8e88b0"),
-		"Headquarters": Color("9aa398"),
-	}
-	var category_color: Color = category_colors.get(category, Color("8fa06f"))
-	get_node("Frame/CategoryStrip").color = category_color
+	var palette: Dictionary = role_palette(data)
+	get_node("Frame/CategoryStrip").color = palette["strip"]
 	var rarity := str(data.get("rarity", ""))
 	var pip := get_node("Frame/RarityPip") as ColorRect
 	pip.color = RARITY_PIP_COLORS.get(rarity, Color("9aa06b"))
-	var owner := str(data.get("owner_id", ""))
-	var nation := str(data.get("nation", ""))
-	var border := Color("a88f58")
-	if owner == "player" or nation == "UnitedStates":
-		border = Color("7899ad")
-	elif owner == "opponent" or nation == "SovietUnion":
-		border = Color("a96d5e")
-	add_theme_stylebox_override("normal", _card_style(Color("1b241e"), border, 2))
-	add_theme_stylebox_override("hover", _card_style(Color("243029"), border.lightened(0.15), 3))
-	add_theme_stylebox_override("pressed", _card_style(Color("151d18"), category_color.lightened(0.12), 3))
+	var plate := StyleBoxFlat.new()
+	plate.bg_color = palette["plate"]
+	plate.border_color = (palette["border"] as Color).darkened(0.15)
+	plate.border_width_bottom = 1
+	plate.set_corner_radius_all(2)
+	plate.anti_aliasing = true
+	get_node("Frame/TitleBanner").add_theme_stylebox_override("panel", plate)
+	get_node("Frame/Type").add_theme_color_override("font_color", (palette["strip"] as Color).lightened(0.12))
+	add_theme_stylebox_override("normal", _card_style(palette["fill"] as Color, palette["border"] as Color, 2))
+	add_theme_stylebox_override("hover", _card_style((palette["fill"] as Color).lightened(0.08), (palette["border"] as Color).lightened(0.12), 3))
+	add_theme_stylebox_override("pressed", _card_style((palette["fill"] as Color).darkened(0.08), (palette["border"] as Color).lightened(0.08), 3))
 
 
 func _card_style(fill: Color, border: Color, width: int) -> StyleBoxFlat:
@@ -321,10 +386,29 @@ func _card_style(fill: Color, border: Color, width: int) -> StyleBoxFlat:
 	style.border_color = border
 	style.set_border_width_all(width)
 	style.border_width_bottom = width + 1
-	style.set_corner_radius_all(6)
+	style.set_corner_radius_all(5)
 	style.set_expand_margin_all(1.0 if width >= 4 else 0.0)
+	style.shadow_color = Color(0.02, 0.02, 0.01, 0.45)
+	style.shadow_size = 3 if width >= 3 else 1
 	style.anti_aliasing = true
 	return style
+
+
+func _style_pip(label: Label, size: float, font_size: int) -> void:
+	label.custom_minimum_size = Vector2(size, size)
+	label.clip_contents = false
+	var font := FontVariation.new()
+	if ThemeFactoryScript.UI_FONT != null:
+		font.base_font = ThemeFactoryScript.UI_FONT
+	font.variation_embolden = 0.65
+	label.add_theme_font_override("font", font)
+	label.add_theme_font_size_override("font_size", font_size)
+	label.add_theme_color_override("font_color", Color("f4ead2"))
+	label.add_theme_color_override("font_outline_color", Color(0.06, 0.04, 0.03, 0.90))
+	label.add_theme_constant_override("outline_size", 2)
+	label.add_theme_color_override("font_shadow_color", Color(0.02, 0.02, 0.01, 0.70))
+	label.add_theme_constant_override("shadow_offset_x", 0)
+	label.add_theme_constant_override("shadow_offset_y", 1)
 
 
 func _set_rect(control: Control, left: float, top: float, right: float, bottom: float) -> void:
@@ -347,12 +431,72 @@ func _set_rect(control: Control, left: float, top: float, right: float, bottom: 
 
 
 func _type_mark(data: Dictionary) -> String:
+	if mode in ["catalog", "hand"]:
+		return LocaleScript.ui("role.%s" % card_role(data))
 	var kind := LocaleScript.card_kind(data)
-	if mode == "hand" and not kind.is_empty():
-		return kind
 	if not kind.is_empty():
 		return kind.left(1)
 	return str(data.get("category", "")).left(1).to_upper()
+
+
+static func card_role(data: Dictionary) -> String:
+	var category := str(data.get("category", ""))
+	if category in ["Order", "Countermeasure"]:
+		return ROLE_EFFECT
+	if category == "Headquarters":
+		return ROLE_HOLD
+	var keyword_names: Array[String] = []
+	for keyword in data.get("keywords", []):
+		keyword_names.append(str(keyword))
+	if "Guard" in keyword_names:
+		return ROLE_HOLD
+	for strike_word in ["Blitz", "Fury", "Bypass Guard"]:
+		if strike_word in keyword_names:
+			return ROLE_STRIKE
+	var unit_type := str(data.get("unit_type", ""))
+	if unit_type in ["Tank", "Fighter", "Bomber", "Artillery"]:
+		return ROLE_STRIKE
+	if int(data.get("attack", 0)) > int(data.get("defense", 0)):
+		return ROLE_STRIKE
+	return ROLE_HOLD
+
+
+static func role_palette(data: Dictionary) -> Dictionary:
+	var role := card_role(data)
+	if ROLE_PALETTES.has(role):
+		return ROLE_PALETTES[role]
+	return ROLE_PALETTES[ROLE_HOLD]
+
+
+static func inspect_meta_line(data: Dictionary) -> String:
+	var parts: PackedStringArray = PackedStringArray()
+	parts.append(LocaleScript.ui("role.%s" % card_role(data)))
+	var title := str(data.get("title", "")).strip_edges()
+	var kind := LocaleScript.card_kind(data)
+	if not kind.is_empty() and kind != title:
+		parts.append(kind)
+	var category := str(data.get("category", ""))
+	if category != "Headquarters":
+		parts.append("%s %d" % [LocaleScript.ui("inspect.deploy"), int(data.get("deployment_cost", 0))])
+		parts.append("%s %d" % [LocaleScript.ui("inspect.operate"), int(data.get("operation_cost", 0))])
+	var attack := int(data.get("attack", 0))
+	var defense := int(data.get("defense", 0))
+	if category in ["Unit", "Headquarters"] or attack > 0 or defense > 0:
+		parts.append("%s %d" % [LocaleScript.ui("inspect.attack"), attack])
+		parts.append("%s %d" % [LocaleScript.ui("inspect.defense"), defense])
+	return "  ·  ".join(parts)
+
+
+static func inspect_body(data: Dictionary) -> String:
+	var lines: PackedStringArray = PackedStringArray()
+	var blurb := LocaleScript.card_blurb(data)
+	if not blurb.is_empty():
+		lines.append(blurb)
+	for keyword in data.get("keywords", []):
+		var keyword_text := LocaleScript.keyword(str(keyword))
+		if keyword_text != blurb and keyword_text not in lines:
+			lines.append(keyword_text)
+	return "\n".join(lines)
 
 
 static func inspect_copy(data: Dictionary) -> String:
@@ -360,6 +504,7 @@ static func inspect_copy(data: Dictionary) -> String:
 	var title := str(data.get("title", "")).strip_edges()
 	if not title.is_empty():
 		lines.append(title)
+	lines.append(LocaleScript.ui("role.%s" % card_role(data)))
 	var kind := LocaleScript.card_kind(data)
 	if not kind.is_empty() and kind != title:
 		lines.append(kind)
@@ -372,13 +517,9 @@ static func inspect_copy(data: Dictionary) -> String:
 	var defense := int(data.get("defense", 0))
 	if category in ["Unit", "Headquarters"] or attack > 0 or defense > 0:
 		lines.append("%s %d  ·  %s %d" % [LocaleScript.ui("inspect.attack"), attack, LocaleScript.ui("inspect.defense"), defense])
-	var blurb := LocaleScript.card_blurb(data)
-	if not blurb.is_empty():
-		lines.append(blurb)
-	for keyword in data.get("keywords", []):
-		var keyword_text := LocaleScript.keyword(str(keyword))
-		if keyword_text != blurb and keyword_text not in lines:
-			lines.append(keyword_text)
+	var body := inspect_body(data)
+	if not body.is_empty():
+		lines.append(body)
 	return "\n".join(lines)
 
 
@@ -388,8 +529,11 @@ func set_duty_caption(text: String) -> void:
 	var type := get_node("Frame/Type") as Label
 	type.visible = not text.is_empty()
 	type.text = text
+	type.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	type.add_theme_font_size_override("font_size", 8)
-	type.add_theme_color_override("font_color", Color("e8d9a4"))
+	type.add_theme_color_override("font_color", Color(0.92, 0.84, 0.58, 0.95))
+	type.add_theme_color_override("font_outline_color", Color(0.05, 0.04, 0.03, 0.86))
+	type.add_theme_constant_override("outline_size", 3)
 
 
 func _start_legal_pulse() -> void:

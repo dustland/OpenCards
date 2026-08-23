@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Supersampled metal pips that match badge_cost: disc, rim, engraved icon."""
+"""Empty recessed metal wells for card numbers. No center icons — the digit is the mark."""
 
 from __future__ import annotations
 
@@ -68,94 +68,57 @@ def put(px: list[int], x: int, y: int, rgb: tuple[float, float, float], a: float
     px[i + 3] = int(round(out_a * 255.0))
 
 
-def cover_circle(d: float, radius: float) -> float:
-    return clamp((radius - d) / 1.35 + 0.5)
+def cover_edge(d: float, radius: float) -> float:
+    return clamp((radius - d) / 1.25 + 0.5)
 
 
-def stamp_icon(px: list[int], kind: str, ink: tuple[float, float, float], highlight: tuple[float, float, float]) -> None:
+def shade_metal(face: tuple[float, float, float], nx: float, ny: float, well: float) -> tuple[float, float, float]:
+    dark = mix(face, (0.05, 0.04, 0.03), 0.62)
+    light = mix(face, (0.98, 0.93, 0.78), 0.38)
+    lamp = clamp(0.46 + (-nx * 0.30 - ny * 0.56) * 0.62)
+    rgb = mix(dark, light, lamp * (0.82 - well * 0.28))
+    hl = clamp(1.0 - math.hypot(nx + 0.30, ny + 0.36) * 1.65)
+    return mix(rgb, light, hl * 0.16 * (1.0 - well * 0.5))
+
+
+def stamp_well(px: list[int], inside, face: tuple[float, float, float]) -> bytes:
     cx = cy = SRC * 0.5
-    scale = SRC / 64.0
-
-    def stamp(fn) -> None:
-        for y in range(SRC):
-            for x in range(SRC):
-                cover = fn(((x - cx) / scale, (y - cy) / scale))
-                if cover > 0:
-                    put(px, x, y, ink, cover * 0.82)
-                    put(px, x - 1, y - 1, highlight, cover * 0.22)
-
-    if kind == "spear":
-
-        def spear(p):
-            x, y = p
-            head = cover_circle(math.hypot(x, y + 4.0), 0.2)
-            # upward triangle
-            if -7.2 <= y <= 3.2 and abs(x) <= (3.2 - y) * 0.55:
-                head = max(head, 1.0)
-            shaft = 1.0 if abs(x) <= 1.15 and 2.4 <= y <= 10.6 else 0.0
-            guard = 1.0 if abs(y - 2.6) <= 0.95 and abs(x) <= 4.6 else 0.0
-            return clamp(max(head, shaft, guard))
-
-        stamp(spear)
-    elif kind == "chevrons":
-
-        def chevrons(p):
-            x, y = p
-            cover = 0.0
-            for mid in (-4.4, 2.2):
-                yy = y - mid
-                band = abs(yy - abs(x) * 0.72)
-                if -6.2 <= x <= 6.2 and -3.2 <= yy <= 2.4 and band <= 1.45:
-                    cover = 1.0
-            return cover
-
-        stamp(chevrons)
-
-
-def metal_disc(face: tuple[float, float, float], icon: str | None) -> bytes:
-    px = [0] * (SRC * SRC * 4)
-    cx = cy = SRC * 0.5
-    r_outer = SRC * 0.46
-    r_rim = SRC * 0.395
-    r_groove = SRC * 0.355
-    r_face = SRC * 0.33
-    dark = mix(face, (0.08, 0.06, 0.04), 0.55)
-    light = mix(face, (1.0, 0.96, 0.82), 0.42)
-    groove = mix(face, (0.04, 0.03, 0.02), 0.62)
     for y in range(SRC):
         for x in range(SRC):
-            dx = x - cx
-            dy = y - cy
-            d = math.hypot(dx, dy)
-            a = cover_circle(d, r_outer)
+            dist, normal, a = inside(x, y, cx, cy)
             if a <= 0:
                 continue
-            nx = dx / r_outer
-            ny = dy / r_outer
-            lamp = clamp(0.52 + (-nx * 0.32 - ny * 0.58) * 0.55)
-            if d > r_rim:
-                rgb = mix(dark, light, lamp * 0.85)
-            elif d > r_groove:
-                rgb = mix(groove, face, 1.0 - lamp)
+            # rim / groove / recessed face
+            if dist > 0.86:
+                rgb = shade_metal(mix(face, (0.10, 0.08, 0.06), 0.28), normal[0], normal[1], 0.0)
+            elif dist > 0.72:
+                rgb = mix(face, (0.04, 0.03, 0.02), 0.70)
             else:
-                radial = clamp(1.0 - (d / r_face) * 0.22)
-                rgb = mix(dark, light, lamp * radial)
-                if d > r_face:
-                    rgb = mix(rgb, groove, 0.35)
-            # soft inner highlight on the upper-left face
-            if d < r_face:
-                hl = clamp(1.0 - math.hypot(nx + 0.28, ny + 0.34) * 1.7)
-                rgb = mix(rgb, light, hl * 0.18)
+                well = clamp((0.72 - dist) / 0.72)
+                rgb = shade_metal(mix(face, (0.03, 0.03, 0.02), 0.42 + well * 0.18), normal[0], normal[1], well)
             put(px, x, y, rgb, a)
-    if icon:
-        stamp_icon(px, icon, mix(face, (0.12, 0.08, 0.05), 0.62), mix(face, (1.0, 0.94, 0.78), 0.55))
     return downsample(px)
+
+
+def disc_inside(x: float, y: float, cx: float, cy: float):
+    dx, dy = x - cx, y - cy
+    r = SRC * 0.46
+    d = math.hypot(dx, dy)
+    a = cover_edge(d, r)
+    nx, ny = (dx / r, dy / r) if r else (0.0, 0.0)
+    return (d / r if r else 1.0, (nx, ny), a)
 
 
 def main() -> None:
     root = Path("game_assets/ui")
-    write_png(root / "badge_attack.png", SIZE, SIZE, metal_disc((0.72, 0.36, 0.26), "spear"))
-    write_png(root / "badge_operate.png", SIZE, SIZE, metal_disc((0.28, 0.58, 0.54), "chevrons"))
+    wells = {
+        "badge_cost.png": ((0.78, 0.62, 0.30), disc_inside),
+        "badge_operate.png": ((0.30, 0.48, 0.40), disc_inside),
+        "badge_attack.png": ((0.62, 0.30, 0.22), disc_inside),
+        "badge_defense.png": ((0.32, 0.44, 0.54), disc_inside),
+    }
+    for name, (face, inside) in wells.items():
+        write_png(root / name, SIZE, SIZE, stamp_well([0] * (SRC * SRC * 4), inside, face))
 
 
 if __name__ == "__main__":

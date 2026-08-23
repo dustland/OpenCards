@@ -153,10 +153,22 @@ static func _test_match_coach_and_card_states(t) -> void:
 	view.set_onboarding_state(OnboardingStore.defaults())
 	await view.get_tree().process_frame
 	t.assert_eq(view.get_node("%CoachObjective").text, LocaleScript.ui("coach.deploy"), "coach renders first-turn deploy objective")
+	var hand_top: float = view.get_node("%HandScroll").get_global_rect().position.y
+	var coach := view.get_node("%CoachObjective") as Control
+	t.assert_true(coach.get_parent() == view.get_node("ChromeOverlay"), "coach floats over the table instead of sitting in the board stack")
+	t.assert_true(coach.get_global_rect().end.y <= hand_top + 0.5, "coach never drops into the hand")
+	t.assert_true(coach.size.y <= 24.0, "coach keeps a fixed caption height")
 	var cards := view.get_node("%PlayerHand").get_children()
 	t.assert_eq(cards[0].action_state, "legal", "legal hand source is highlighted")
 	t.assert_eq(cards[1].action_state, "unavailable", "illegal hand source is unavailable")
 	t.assert_true(cards[1].tooltip_text.begins_with(LocaleScript.ui("reason.credit")), "unavailable source exposes concrete reason")
+	view._on_card_inspected((cards[0] as CardView).card_data)
+	await view.get_tree().process_frame
+	var dossier := view._inspect_panel as Control
+	t.assert_true(dossier.visible, "inspect dossier opens over the table")
+	t.assert_true(dossier.size.x <= 280.0 and dossier.size.y <= 120.0, "inspect stays in a fixed pocket")
+	t.assert_true(dossier.get_global_rect().end.y <= hand_top + 0.5, "inspect never drops into the hand")
+	t.assert_eq(view.get_node("%HandScroll").get_global_rect().position.y, hand_top, "inspect does not shift the hand")
 	view._on_card_pressed("one-cost")
 	t.assert_eq(cards[0].action_state, "selected", "selected source has selected semantics")
 	t.assert_eq(view.get_node("%CoachObjective").text, LocaleScript.ui("coach.support_slot"), "selection refreshes coach immediately")
@@ -173,6 +185,7 @@ static func _test_match_coach_and_card_states(t) -> void:
 	view.show_rejection("stale_action", "That action is no longer legal.")
 	t.assert_eq(view.get_node("%CoachObjective").text, "That action is no longer legal.", "rejection takes coach precedence")
 	t.assert_eq((view.get_node("%CoachObjective") as Control).size.y, objective_height, "rejection does not resize coach strip")
+	t.assert_eq(view.get_node("%HandScroll").get_global_rect().position.y, hand_top, "hints do not shift the hand")
 	view.queue_free()
 	await Engine.get_main_loop().process_frame
 
@@ -251,6 +264,9 @@ static func _test_aim_arrow_and_dual_play(t) -> void:
 	t.assert_true(view.is_processing(), "two-click aiming tracks the mouse")
 	t.assert_true(0 in view.model.highlighted_slots("support"), "legal drop slots highlight after click")
 	t.assert_true(view._aim_source_point() != Vector2.ZERO, "aim arrow has a source point")
+	var overlay: CanvasItem = view._aim_overlay
+	t.assert_true(overlay != null and overlay.z_index >= 80 and not overlay.z_as_relative, "aim arrow stays above cards and motion ghosts")
+	t.assert_eq(overlay.get_index(), view.get_child_count() - 1, "aim overlay is the frontmost match child")
 	view.model.cancel()
 	view._refresh_coach()
 	view._on_card_drag_started("one-cost")
