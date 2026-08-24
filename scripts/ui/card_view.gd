@@ -8,6 +8,11 @@ signal inspected(data: Dictionary)
 
 const LocaleScript = preload("res://scripts/ui/locale.gd")
 const ThemeFactoryScript = preload("res://scripts/ui/theme_factory.gd")
+const BattlefieldChromeScript = preload("res://scripts/ui/battlefield_chrome.gd")
+const CardPrintSpecScript = preload("res://scripts/ui/card_print_spec.gd")
+const ART_VIGNETTE_SHADER := preload("res://shaders/card_art_vignette.gdshader")
+const GLINT_SHADER := preload("res://shaders/card_metal_glint.gdshader")
+const METAL_SHADER := preload("res://shaders/card_metal_surface.gdshader")
 
 const MODE_SIZES := {
 	"catalog": Vector2(180, 252),
@@ -16,11 +21,18 @@ const MODE_SIZES := {
 	"hidden": Vector2(116, 162),
 }
 
+const RARITY_GLINT_INTENSITY := {
+	"Standard": 0.28,
+	"Limited": 0.36,
+	"Special": 0.46,
+	"Elite": 0.58,
+}
+
 const RARITY_PIP_COLORS := {
-	"Standard": Color("9aa06b"),
-	"Limited": Color("6fa3c4"),
-	"Special": Color("b084c9"),
-	"Elite": Color("e3c35c"),
+	"Standard": Color("8a9098"),
+	"Limited": Color("9aacbc"),
+	"Special": Color("b0a0c0"),
+	"Elite": Color("d4c890"),
 }
 
 const ROLE_STRIKE := "strike"
@@ -28,22 +40,22 @@ const ROLE_HOLD := "hold"
 const ROLE_EFFECT := "effect"
 const ROLE_PALETTES := {
 	"strike": {
-		"fill": Color(0.16, 0.08, 0.06),
-		"border": Color(0.80, 0.42, 0.28),
-		"plate": Color(0.38, 0.14, 0.09, 0.78),
-		"strip": Color(0.84, 0.40, 0.24),
+		"fill": Color(0.038, 0.038, 0.040),
+		"border": Color(0.82, 0.76, 0.68),
+		"plate": Color(0.025, 0.026, 0.028, 0.88),
+		"strip": Color(0.62, 0.56, 0.50),
 	},
 	"hold": {
-		"fill": Color(0.07, 0.10, 0.12),
-		"border": Color(0.40, 0.60, 0.70),
-		"plate": Color(0.10, 0.16, 0.20, 0.78),
-		"strip": Color(0.44, 0.64, 0.74),
+		"fill": Color(0.036, 0.039, 0.044),
+		"border": Color(0.68, 0.76, 0.84),
+		"plate": Color(0.024, 0.026, 0.030, 0.88),
+		"strip": Color(0.50, 0.58, 0.66),
 	},
 	"effect": {
-		"fill": Color(0.13, 0.10, 0.05),
-		"border": Color(0.80, 0.66, 0.32),
-		"plate": Color(0.28, 0.21, 0.08, 0.78),
-		"strip": Color(0.88, 0.72, 0.36),
+		"fill": Color(0.040, 0.039, 0.036),
+		"border": Color(0.84, 0.80, 0.66),
+		"plate": Color(0.028, 0.027, 0.024, 0.88),
+		"strip": Color(0.66, 0.62, 0.52),
 	},
 }
 
@@ -56,10 +68,13 @@ var _hover_active := false
 var _rest_position := Vector2.ZERO
 var _hover_tween: Tween
 var _legal_pulse: Tween
+var _art_sheen_texture: GradientTexture2D
+var _frame_polish_ready := false
 
 
 func _ready() -> void:
 	pressed.connect(_on_pressed)
+	_ensure_frame_polish()
 
 
 func bind(data: Dictionary, display_mode: String) -> void:
@@ -73,12 +88,14 @@ func bind(data: Dictionary, display_mode: String) -> void:
 	custom_minimum_size = MODE_SIZES[mode]
 	size = custom_minimum_size
 	pivot_offset = size * 0.5
+	_ensure_frame_polish()
 	_apply_mode_layout()
 
 	var hidden := mode == "hidden" or bool(data.get("hidden", false))
 	card_data = {"hidden": true} if hidden else data.duplicate(true)
 	get_node("CardBack").visible = hidden
 	get_node("Frame").visible = not hidden
+	_set_collectible_overlays_visible(not hidden)
 	_base_tooltip = "" if hidden else str(data.get("description", ""))
 	tooltip_text = _base_tooltip
 	_apply_back_tint(data)
@@ -114,18 +131,43 @@ func set_action_state(state: String, reason: String = "") -> void:
 	var border: Color = palette["border"]
 	match state:
 		"legal":
-			border = Color("e1c45a")
+			border = Color("c8d0dc")
 		"selected":
-			border = Color("fff0a0")
+			border = Color("eef2f8")
 		"unavailable":
-			fill = fill.darkened(0.18)
-			border = Color(0.36, 0.36, 0.34)
+			fill = fill.darkened(0.12)
+			border = Color(0.32, 0.34, 0.36)
 	var glow := state in ["legal", "selected"]
-	add_theme_stylebox_override("normal", _card_style(fill if state != "unavailable" else Color("171616"), border, 4 if glow else 2))
-	add_theme_stylebox_override("hover", _card_style(fill.lightened(0.08), border.lightened(0.12), 5 if glow else 3))
+	add_theme_stylebox_override("normal", _card_style(fill if state != "unavailable" else Color("171616"), border, 4 if glow else 0))
+	add_theme_stylebox_override("hover", _card_style(fill.lightened(0.08), border.lightened(0.12), 5 if glow else 0))
 	self_modulate = Color(0.68, 0.68, 0.68, 1.0) if state == "unavailable" else Color.WHITE
+	_apply_glint_state(state, palette)
 	if state == "legal":
 		_start_legal_pulse()
+
+
+func _set_collectible_overlays_visible(show_overlays: bool) -> void:
+	get_node("FrameOverlay").visible = show_overlays
+	get_node("FoilOverlay").visible = show_overlays
+
+
+func _apply_glint_state(state: String, palette: Dictionary) -> void:
+	var glint := get_node("FoilOverlay") as TextureRect
+	var material := glint.material as ShaderMaterial
+	if material == null:
+		return
+	var rarity := str(card_data.get("rarity", "Standard"))
+	var base := float(RARITY_GLINT_INTENSITY.get(rarity, 0.28))
+	match state:
+		"legal":
+			base *= 1.35
+		"selected":
+			base *= 1.55
+		"unavailable":
+			base *= 0.25
+	material.set_shader_parameter("intensity", base)
+	var tint: Color = palette["border"] as Color
+	material.set_shader_parameter("tint_color", tint.lerp(Color("eef2f8"), 0.35))
 
 
 func _make_custom_tooltip(_for_text: String) -> Object:
@@ -221,14 +263,20 @@ func _clear_face() -> void:
 
 
 func _apply_back_tint(data: Dictionary) -> void:
-	var tint := Color.WHITE
 	var owner := str(data.get("owner_id", ""))
 	var nation := str(data.get("nation", ""))
-	if owner == "player" or nation == "UnitedStates":
-		tint = Color(0.74, 0.84, 0.96)
-	elif owner == "opponent" or nation == "SovietUnion":
-		tint = Color(0.98, 0.78, 0.72)
-	get_node("CardBack/BackTexture").self_modulate = tint
+	get_node("CardBack/BackTexture").self_modulate = Color(0.92, 0.94, 0.98) if owner == "player" or nation == "UnitedStates" else Color(0.98, 0.94, 0.92)
+	var back_panel := StyleBoxFlat.new()
+	back_panel.bg_color = Color(0.04, 0.042, 0.046, 1)
+	back_panel.border_color = Color(0.55, 0.58, 0.62, 0.85)
+	back_panel.set_border_width_all(3)
+	back_panel.border_width_bottom = 5
+	back_panel.set_corner_radius_all(6)
+	back_panel.shadow_color = Color(0.01, 0.01, 0.005, 0.45)
+	back_panel.shadow_size = 3
+	back_panel.shadow_offset = Vector2(0, 2)
+	back_panel.anti_aliasing = true
+	get_node("CardBack").add_theme_stylebox_override("panel", back_panel)
 
 
 func _apply_mode_layout() -> void:
@@ -241,8 +289,11 @@ func _apply_mode_layout() -> void:
 	var keywords := get_node("Frame/Keywords") as Control
 	var stats := get_node("Frame/Stats") as Control
 	var category_strip := get_node("Frame/CategoryStrip") as Control
+	var category_glow := get_node_or_null("Frame/CategoryStripGlow") as Control
 	var title_banner := get_node("Frame/TitleBanner") as Control
 	var artwork_trim := get_node("Frame/ArtworkTrim") as Control
+	var artwork_vignette := get_node("Frame/ArtworkVignette") as Control
+	var artwork_sheen := get_node("Frame/ArtworkSheen") as Control
 	var rarity_pip := get_node("Frame/RarityPip") as Control
 	frame.clip_contents = false
 	artwork.visible = mode != "hidden"
@@ -254,7 +305,11 @@ func _apply_mode_layout() -> void:
 	keywords.visible = mode == "catalog"
 	title_banner.visible = mode != "hidden"
 	artwork_trim.visible = mode != "hidden"
+	artwork_vignette.visible = mode != "hidden"
+	artwork_sheen.visible = mode != "hidden"
 	rarity_pip.visible = mode == "catalog"
+	if category_glow != null:
+		category_glow.visible = mode != "hidden"
 	get_node("Frame/Costs/Deployment").visible = mode != "battlefield"
 	get_node("Frame/Costs/Operation").visible = mode != "battlefield"
 	var pip := 20.0 if mode == "battlefield" else 22.0
@@ -280,15 +335,21 @@ func _apply_mode_layout() -> void:
 			_set_rect(type, 118, 3, 167, 27)
 			_set_rect(title_banner, 2, 1, 170, 29)
 			_set_rect(artwork, 5, 30, 167, 128)
+			_set_rect(artwork_vignette, 5, 30, 167, 128)
+			_set_rect(artwork_sheen, 5, 30, 167, 128)
 			_set_rect(artwork_trim, 5, 30, 167, 128)
 			_set_rect(costs, 5, 31, 53, 55)
 			_set_rect(stats, 119, 31, 167, 55)
 			_set_rect(description, 6, 132, 166, 190)
 			_set_rect(keywords, 6, 194, 166, 220)
-			_set_rect(category_strip, 0, 0, 5, 244)
+			_set_rect(category_strip, 0, 0, 4, 244)
+			if category_glow != null:
+				_set_rect(category_glow, 4, 1, 7, 243)
 			_set_rect(rarity_pip, 156, 3, 168, 9)
 		"hand":
 			_set_rect(artwork, 3, 2, 105, 150)
+			_set_rect(artwork_vignette, 3, 2, 105, 150)
+			_set_rect(artwork_sheen, 3, 2, 105, 150)
 			_set_rect(artwork_trim, 3, 2, 105, 150)
 			_set_rect(costs, 2, 2, 50, 26)
 			_set_rect(stats, 58, 2, 106, 26)
@@ -298,18 +359,24 @@ func _apply_mode_layout() -> void:
 			_set_rect(title_banner, 3, 26, 105, 44)
 			_set_rect(type, 66, 27, 104, 43)
 			_set_rect(keywords, 56, 16, 104, 28)
-			_set_rect(category_strip, 0, 0, 5, 154)
+			_set_rect(category_strip, 0, 0, 4, 154)
+			if category_glow != null:
+				_set_rect(category_glow, 4, 1, 7, 153)
 		"battlefield":
 			type.add_theme_font_size_override("font_size", 8)
 			stats.alignment = BoxContainer.ALIGNMENT_BEGIN
 			_set_rect(artwork, 2, 2, 70, 102)
+			_set_rect(artwork_vignette, 2, 2, 70, 102)
+			_set_rect(artwork_sheen, 2, 2, 70, 102)
 			_set_rect(artwork_trim, 2, 2, 70, 102)
 			_set_rect(stats, 2, 2, 70, 24)
 			_set_rect(title, 3, 25, 69, 40)
 			_set_rect(title_banner, 2, 24, 70, 41)
 			_set_rect(type, 3, 88, 69, 102)
 			_set_rect(costs, 3, 81, 23, 104)
-			_set_rect(category_strip, 0, 0, 5, 104)
+			_set_rect(category_strip, 0, 0, 4, 104)
+			if category_glow != null:
+				_set_rect(category_glow, 4, 1, 7, 103)
 	costs.clip_contents = false
 	stats.clip_contents = false
 	_style_nameplate(title, title_banner, type, description, keywords)
@@ -324,29 +391,23 @@ func _style_nameplate(title: Label, banner: Control, type: Label, description: C
 	plate.anti_aliasing = true
 	if banner is Panel:
 		(banner as Panel).add_theme_stylebox_override("panel", plate)
-	title.add_theme_color_override("font_color", Color(0.95, 0.89, 0.72, 0.98))
-	title.add_theme_color_override("font_outline_color", Color(0.05, 0.04, 0.03, 0.88))
-	title.add_theme_constant_override("outline_size", 3)
-	type.add_theme_color_override("font_color", Color(0.86, 0.78, 0.58, 0.92))
-	type.add_theme_color_override("font_outline_color", Color(0.05, 0.04, 0.03, 0.80))
-	type.add_theme_constant_override("outline_size", 2)
+	title.add_theme_color_override("font_color", Color(0.86, 0.88, 0.92, 0.98))
+	title.add_theme_color_override("font_outline_color", Color(0.02, 0.02, 0.025, 0.75))
+	title.add_theme_constant_override("outline_size", 2)
+	title.add_theme_color_override("font_shadow_color", Color(0.01, 0.01, 0.015, 0.85))
+	title.add_theme_constant_override("shadow_offset_x", 0)
+	title.add_theme_constant_override("shadow_offset_y", 2)
+	type.add_theme_color_override("font_color", Color(0.62, 0.66, 0.72, 0.92))
+	type.add_theme_color_override("font_outline_color", Color(0.02, 0.02, 0.025, 0.70))
+	type.add_theme_constant_override("outline_size", 1)
 	if description is Label:
 		var body := description as Label
-		body.add_theme_color_override("font_color", Color(0.80, 0.74, 0.62, 0.94))
+		body.add_theme_color_override("font_color", Color(0.58, 0.62, 0.68, 0.94))
 		body.add_theme_font_size_override("font_size", 11)
 		if mode == "catalog":
-			var paper := StyleBoxFlat.new()
-			paper.bg_color = Color(0.05, 0.04, 0.03, 0.72)
-			paper.border_color = Color(0.42, 0.34, 0.20, 0.40)
-			paper.border_width_top = 1
-			paper.content_margin_left = 4
-			paper.content_margin_right = 4
-			paper.content_margin_top = 3
-			paper.content_margin_bottom = 2
-			paper.set_corner_radius_all(2)
-			body.add_theme_stylebox_override("normal", paper)
+			body.add_theme_stylebox_override("normal", StyleBoxEmpty.new())
 	if keywords is Label:
-		(keywords as Label).add_theme_color_override("font_color", Color(0.78, 0.68, 0.42, 0.90))
+		(keywords as Label).add_theme_color_override("font_color", Color(0.52, 0.56, 0.62, 0.90))
 
 
 func _fit_title(value: String) -> void:
@@ -363,33 +424,138 @@ func _fit_title(value: String) -> void:
 
 func _apply_semantic_accents(data: Dictionary) -> void:
 	var palette: Dictionary = role_palette(data)
-	get_node("Frame/CategoryStrip").color = palette["strip"]
-	var rarity := str(data.get("rarity", ""))
-	var pip := get_node("Frame/RarityPip") as ColorRect
-	pip.color = RARITY_PIP_COLORS.get(rarity, Color("9aa06b"))
+	var strip: Color = palette["strip"]
+	get_node("Frame/CategoryStrip").color = strip
+	var glow := get_node_or_null("Frame/CategoryStripGlow") as ColorRect
+	if glow != null:
+		glow.color = Color(strip.r, strip.g, strip.b, 0.12)
+	_style_rarity_pip(str(data.get("rarity", "")))
 	var plate := StyleBoxFlat.new()
 	plate.bg_color = palette["plate"]
-	plate.border_color = (palette["border"] as Color).darkened(0.15)
+	plate.border_color = (palette["border"] as Color).lightened(0.08)
+	plate.border_color.a = 0.35
 	plate.border_width_bottom = 1
+	plate.border_width_top = 1
 	plate.set_corner_radius_all(2)
 	plate.anti_aliasing = true
+	plate.shadow_color = Color(0.02, 0.02, 0.01, 0.35)
+	plate.shadow_size = 1
 	get_node("Frame/TitleBanner").add_theme_stylebox_override("panel", plate)
 	get_node("Frame/Type").add_theme_color_override("font_color", (palette["strip"] as Color).lightened(0.12))
-	add_theme_stylebox_override("normal", _card_style(palette["fill"] as Color, palette["border"] as Color, 2))
-	add_theme_stylebox_override("hover", _card_style((palette["fill"] as Color).lightened(0.08), (palette["border"] as Color).lightened(0.12), 3))
-	add_theme_stylebox_override("pressed", _card_style((palette["fill"] as Color).darkened(0.08), (palette["border"] as Color).lightened(0.08), 3))
+	_apply_inner_frame(palette)
+	_style_artwork_trim(palette)
+	_apply_glint_accent(data, palette)
+	add_theme_stylebox_override("normal", _card_style(palette["fill"] as Color, palette["border"] as Color, 0))
+	add_theme_stylebox_override("hover", _card_style((palette["fill"] as Color).lightened(0.08), (palette["border"] as Color).lightened(0.12), 0))
+	add_theme_stylebox_override("pressed", _card_style((palette["fill"] as Color).darkened(0.08), (palette["border"] as Color).lightened(0.08), 0))
+
+
+func _apply_glint_accent(data: Dictionary, palette: Dictionary) -> void:
+	var glint := get_node("FoilOverlay") as TextureRect
+	var material := glint.material as ShaderMaterial
+	if material == null:
+		material = ShaderMaterial.new()
+		material.shader = GLINT_SHADER
+		glint.material = material
+	var rarity := str(data.get("rarity", "Standard"))
+	material.set_shader_parameter("intensity", RARITY_GLINT_INTENSITY.get(rarity, 0.28))
+	material.set_shader_parameter("tint_color", palette["border"])
+
+
+func _ensure_frame_polish() -> void:
+	if _frame_polish_ready:
+		return
+	_frame_polish_ready = true
+	var inner := get_node("Frame/FrameInner") as Panel
+	var metal := ShaderMaterial.new()
+	metal.shader = METAL_SHADER
+	metal.set_shader_parameter("grain", 0.042)
+	metal.set_shader_parameter("brush", 0.032)
+	inner.material = metal
+	var frame_overlay := get_node("FrameOverlay") as TextureRect
+	if frame_overlay.texture == null and ResourceLoader.exists(CardPrintSpecScript.FRAME_TEXTURE):
+		frame_overlay.texture = load(CardPrintSpecScript.FRAME_TEXTURE)
+	var foil := get_node("FoilOverlay") as TextureRect
+	if foil.texture == null and ResourceLoader.exists(CardPrintSpecScript.FOIL_MASK_TEXTURE):
+		foil.texture = load(CardPrintSpecScript.FOIL_MASK_TEXTURE)
+	var sheen := get_node("Frame/ArtworkSheen") as TextureRect
+	sheen.texture = _artwork_sheen_texture()
+	sheen.modulate = Color(1, 1, 1, 0.55)
+	var vignette := get_node("Frame/ArtworkVignette") as ColorRect
+	var material := ShaderMaterial.new()
+	material.shader = ART_VIGNETTE_SHADER
+	material.set_shader_parameter("strength", 0.52)
+	vignette.material = material
+
+
+func _artwork_sheen_texture() -> GradientTexture2D:
+	if _art_sheen_texture == null:
+		var gradient := Gradient.new()
+		gradient.set_color(0, Color(0.92, 0.94, 0.98, 0.06))
+		gradient.set_color(1, Color(1.0, 1.0, 1.0, 0.0))
+		_art_sheen_texture = GradientTexture2D.new()
+		_art_sheen_texture.gradient = gradient
+		_art_sheen_texture.width = 8
+		_art_sheen_texture.height = 64
+		_art_sheen_texture.fill_from = Vector2(0.5, 0.0)
+		_art_sheen_texture.fill_to = Vector2(0.5, 1.0)
+	return _art_sheen_texture
+
+
+func _apply_inner_frame(palette: Dictionary) -> void:
+	var inner := StyleBoxFlat.new()
+	var fill: Color = palette["fill"]
+	inner.bg_color = fill
+	inner.bg_color.a = 0.98
+	inner.border_color = (palette["border"] as Color).darkened(0.55)
+	inner.border_color.a = 0.35
+	inner.set_border_width_all(1)
+	inner.set_corner_radius_all(4)
+	inner.shadow_color = Color(0.01, 0.01, 0.005, 0.28)
+	inner.shadow_size = 2
+	inner.shadow_offset = Vector2(0, 1)
+	inner.anti_aliasing = true
+	get_node("Frame/FrameInner").add_theme_stylebox_override("panel", inner)
+
+
+func _style_artwork_trim(palette: Dictionary) -> void:
+	var trim := StyleBoxFlat.new()
+	trim.bg_color = Color(0, 0, 0, 0)
+	var edge: Color = (palette["border"] as Color).darkened(0.45)
+	edge.a = 0.55
+	trim.border_color = edge
+	trim.set_border_width_all(1)
+	trim.border_width_top = 1
+	trim.set_corner_radius_all(2)
+	trim.anti_aliasing = true
+	get_node("Frame/ArtworkTrim").add_theme_stylebox_override("panel", trim)
+
+
+func _style_rarity_pip(rarity: String) -> void:
+	var color: Color = RARITY_PIP_COLORS.get(rarity, Color("9aa06b"))
+	var pip := StyleBoxFlat.new()
+	pip.bg_color = color.darkened(0.55)
+	pip.border_color = color.lightened(0.25)
+	pip.set_border_width_all(1)
+	pip.set_corner_radius_all(4)
+	pip.shadow_color = Color(color.r, color.g, color.b, 0.55)
+	pip.shadow_size = 2
+	pip.anti_aliasing = true
+	get_node("Frame/RarityPip").add_theme_stylebox_override("panel", pip)
 
 
 func _card_style(fill: Color, border: Color, width: int) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
-	style.bg_color = fill
+	style.bg_color = Color(fill.r, fill.g, fill.b, 0.0)
 	style.border_color = border
 	style.set_border_width_all(width)
-	style.border_width_bottom = width + 1
-	style.set_corner_radius_all(5)
-	style.set_expand_margin_all(1.0 if width >= 4 else 0.0)
-	style.shadow_color = Color(0.02, 0.02, 0.01, 0.45)
-	style.shadow_size = 3 if width >= 3 else 1
+	style.border_width_bottom = width + 1 if width > 0 else 0
+	style.border_width_top = maxi(width - 1, 0)
+	style.set_corner_radius_all(6)
+	style.set_expand_margin_all(2.0 if width >= 4 else 0.0)
+	style.shadow_color = Color(0.015, 0.012, 0.008, 0.45 if width >= 3 else 0.0)
+	style.shadow_size = 6 if width >= 3 else 0
+	style.shadow_offset = Vector2(0, 2)
 	style.anti_aliasing = true
 	return style
 
@@ -403,12 +569,12 @@ func _style_pip(label: Label, size: float, font_size: int) -> void:
 	font.variation_embolden = 0.65
 	label.add_theme_font_override("font", font)
 	label.add_theme_font_size_override("font_size", font_size)
-	label.add_theme_color_override("font_color", Color("f4ead2"))
-	label.add_theme_color_override("font_outline_color", Color(0.06, 0.04, 0.03, 0.90))
-	label.add_theme_constant_override("outline_size", 2)
-	label.add_theme_color_override("font_shadow_color", Color(0.02, 0.02, 0.01, 0.70))
+	label.add_theme_color_override("font_color", Color("d8dce4"))
+	label.add_theme_color_override("font_outline_color", Color(0.02, 0.02, 0.025, 0.85))
+	label.add_theme_constant_override("outline_size", 1)
+	label.add_theme_color_override("font_shadow_color", Color(0.01, 0.01, 0.015, 0.90))
 	label.add_theme_constant_override("shadow_offset_x", 0)
-	label.add_theme_constant_override("shadow_offset_y", 1)
+	label.add_theme_constant_override("shadow_offset_y", 2)
 
 
 func _set_rect(control: Control, left: float, top: float, right: float, bottom: float) -> void:
@@ -531,7 +697,7 @@ func set_duty_caption(text: String) -> void:
 	type.text = text
 	type.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	type.add_theme_font_size_override("font_size", 8)
-	type.add_theme_color_override("font_color", Color(0.92, 0.84, 0.58, 0.95))
+	type.add_theme_color_override("font_color", Color(0.78, 0.82, 0.88, 0.95))
 	type.add_theme_color_override("font_outline_color", Color(0.05, 0.04, 0.03, 0.86))
 	type.add_theme_constant_override("outline_size", 3)
 
@@ -541,7 +707,7 @@ func _start_legal_pulse() -> void:
 		return
 	_stop_legal_pulse()
 	_legal_pulse = create_tween().set_loops()
-	_legal_pulse.tween_property(self, "self_modulate", Color(1.18, 1.1, 0.72), 0.5)
+	_legal_pulse.tween_property(self, "self_modulate", Color(1.12, 1.14, 1.18), 0.5)
 	_legal_pulse.tween_property(self, "self_modulate", Color.WHITE, 0.5)
 
 

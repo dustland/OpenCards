@@ -15,7 +15,8 @@ const ART_SLUGS := [
 ]
 const UI_ASSETS := [
 	"badge_attack", "badge_cost", "badge_defense", "badge_operate",
-	"battlefield_bg", "card_back", "hq_su", "hq_us", "title_cover",
+	"battlefield_bg", "card_back", "card_frame", "card_frame_foil",
+	"hq_su", "hq_us", "title_cover",
 ]
 const REQUIRED_FILES := [
 	"project.binary",

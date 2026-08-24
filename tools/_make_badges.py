@@ -88,14 +88,15 @@ def stamp_well(px: list[int], inside, face: tuple[float, float, float]) -> bytes
             dist, normal, a = inside(x, y, cx, cy)
             if a <= 0:
                 continue
-            # rim / groove / recessed face
             if dist > 0.86:
-                rgb = shade_metal(mix(face, (0.10, 0.08, 0.06), 0.28), normal[0], normal[1], 0.0)
+                rgb = shade_metal(mix(face, (0.06, 0.06, 0.065), 0.35), normal[0], normal[1], 0.0)
             elif dist > 0.72:
-                rgb = mix(face, (0.04, 0.03, 0.02), 0.70)
+                rgb = mix((0.015, 0.016, 0.018), face, 0.25)
             else:
                 well = clamp((0.72 - dist) / 0.72)
-                rgb = shade_metal(mix(face, (0.03, 0.03, 0.02), 0.42 + well * 0.18), normal[0], normal[1], well)
+                rgb = shade_metal(mix((0.010, 0.011, 0.012), face, 0.15 + well * 0.12), normal[0], normal[1], well * 1.1)
+            if dist > 0.78 and dist < 0.92:
+                rgb = mix(rgb, (0.82, 0.84, 0.88), 0.35)
             put(px, x, y, rgb, a)
     return downsample(px)
 

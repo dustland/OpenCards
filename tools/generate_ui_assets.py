@@ -17,6 +17,7 @@ import math
 import os
 import random
 import struct
+import sys
 import zlib
 
 SEED = 20260816
@@ -239,58 +240,41 @@ def gen_battlefield_bg(path: str) -> None:
 # ------------------------------------------------------------------ card back
 
 def gen_card_back(path: str) -> None:
+    """Matte black metal back with engraved centurion star (AmEx-style)."""
     W, H = 232, 324
     px = bytearray(W * H * 4)
-    base_top = (0.115, 0.135, 0.120)
-    base_bottom = (0.085, 0.10, 0.090)
-    brass = (0.60, 0.51, 0.29)
-    brass_dim = (0.34, 0.30, 0.185)
-    noise = value_noise(SEED + 11, 8, 12)
-
+    matte = (0.038, 0.040, 0.044)
+    groove = (0.012, 0.013, 0.015)
+    spec = (0.72, 0.75, 0.80)
+    noise = value_noise(SEED + 11, 12, 16)
     cx, cy = W / 2, H / 2
-    star_outer = 64.0
-    star_inner = 0.42
 
     for y in range(H):
-        v = y / (H - 1)
         for x in range(W):
-            u = x / (W - 1)
-            base = mix(base_top, base_bottom, v)
+            u, v = x / (W - 1), y / (H - 1)
             n = noise(u, v)
-            base = (base[0] * (0.93 + 0.14 * n), base[1] * (0.93 + 0.14 * n), base[2] * (0.93 + 0.14 * n))
-
-            # diagonal lattice (45 deg, period 17px)
-            d = (x + y) % 17
-            if d <= 1 or (x - y) % 17 in (0, 1):
-                base = mix(base, brass_dim, 0.55)
-
-            # borders: outer 5px, inner 2px at inset 11
+            streak = math.sin(y * 0.38 + n * 3.0) * 0.5 + 0.5
+            base = mix(matte, (0.048, 0.050, 0.054), streak * 0.08 + n * 0.06)
             inset = min(x, y, W - 1 - x, H - 1 - y)
-            if inset < 5 or (10 <= inset <= 11) or (14 <= inset <= 15):
-                edge = 0.75 + 0.25 * math.sin((x + y) * 0.5)
-                col = (brass[0] * edge, brass[1] * edge, brass[2] * edge)
-                base = mix(base, col, 0.9)
-
-            # center star emblem
+            if inset < 4:
+                base = mix(base, spec if inset < 1 else groove, 0.85)
+            if 7 <= inset <= 8:
+                base = mix(base, spec, 0.55)
             dx, dy = x - cx, y - cy
             dist = math.hypot(dx, dy)
             theta = (math.atan2(dy, dx) / (2 * math.pi) + 1.0) % 1.0
-            sr = star_radius(theta, 5, star_inner) * star_outer
+            sr = star_radius(theta, 5, 0.40) * 52
             if dist <= sr:
-                base = mix(base, (0.19, 0.18, 0.135), 0.88)   # dark fill
-            if abs(dist - sr) <= 1.4:
-                base = mix(base, brass, 0.95)                # brass outline
-            if abs(dist - (star_outer + 16)) <= 1.2:         # halo ring
-                base = mix(base, brass_dim, 0.8)
-
-            # corner rivets just inside inner border
-            for rx, ry in ((18, 18), (W - 18, 18), (18, H - 18), (W - 18, H - 18)):
-                if math.hypot(x - rx, y - ry) <= 3.2:
-                    base = mix(base, brass, 0.9)
-
+                base = mix(base, groove, 0.88)
+            if abs(dist - sr) <= 1.2:
+                base = mix(base, spec, 0.92)
+            if abs(dist - 68) <= 1.0:
+                base = mix(base, spec, 0.65)
             o = (y * W + x) * 4
-            px[o] = int(clamp01(base[0]) * 255); px[o + 1] = int(clamp01(base[1]) * 255)
-            px[o + 2] = int(clamp01(base[2]) * 255); px[o + 3] = 255
+            px[o] = int(clamp01(base[0]) * 255)
+            px[o + 1] = int(clamp01(base[1]) * 255)
+            px[o + 2] = int(clamp01(base[2]) * 255)
+            px[o + 3] = 255
 
     write_png(path, W, H, px)
 
@@ -419,6 +403,12 @@ def main() -> None:
     # battlefield_bg.png is a darkened, desaturated crop of boot_splash.png so
     # the discarded splash can sit behind cards without competing with them.
     gen_card_back(os.path.join(OUT_DIR, "card_back.png"))
+    _tools = os.path.dirname(os.path.abspath(__file__))
+    if _tools not in sys.path:
+        sys.path.insert(0, _tools)
+    from generate_card_frames import main as gen_frames
+
+    gen_frames(OUT_DIR)
     gen_hq(os.path.join(OUT_DIR, "hq_us.png"),
            rim=(0.335, 0.40, 0.375), deep=(0.14, 0.19, 0.21), star_fill=(0.66, 0.62, 0.44))
     gen_hq(os.path.join(OUT_DIR, "hq_su.png"),
