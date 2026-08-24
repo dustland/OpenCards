@@ -17,6 +17,7 @@ import math
 import os
 import random
 import struct
+import sys
 import zlib
 
 SEED = 20260816
@@ -451,6 +452,12 @@ def main() -> None:
     # battlefield_bg.png is a darkened, desaturated crop of boot_splash.png so
     # the discarded splash can sit behind cards without competing with them.
     gen_card_back(os.path.join(OUT_DIR, "card_back.png"))
+    _tools = os.path.dirname(os.path.abspath(__file__))
+    if _tools not in sys.path:
+        sys.path.insert(0, _tools)
+    from generate_card_frames import main as gen_frames
+
+    gen_frames(OUT_DIR)
     gen_hq(os.path.join(OUT_DIR, "hq_us.png"),
            rim=(0.335, 0.40, 0.375), deep=(0.14, 0.19, 0.21), star_fill=(0.66, 0.62, 0.44))
     gen_hq(os.path.join(OUT_DIR, "hq_su.png"),

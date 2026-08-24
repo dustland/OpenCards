@@ -502,6 +502,8 @@ static func _test_card_visual_badges_fan_hover_and_ghost(t) -> void:
 	t.assert_true(card.get_node("Frame/Stats/Attack/BadgeAttack").texture != null, "attack badge art present")
 	t.assert_true(card.get_node("Frame/Stats/Defense/BadgeDefense").texture != null, "defense badge art present")
 	t.assert_true(card.get_node("CardBack/BackTexture").texture != null, "card back uses generated texture")
+	t.assert_true(card.get_node("FrameOverlay").texture != null, "collectible frame overlay present")
+	t.assert_true(card.get_node("FoilOverlay").texture != null, "foil mask overlay present")
 	# Hand hover lifts and restores.
 	var base_y: float = card.position.y
 	card._set_hover_lift(true)

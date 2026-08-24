@@ -88,7 +88,6 @@ def stamp_well(px: list[int], inside, face: tuple[float, float, float]) -> bytes
             dist, normal, a = inside(x, y, cx, cy)
             if a <= 0:
                 continue
-            # rim / groove / recessed face
             if dist > 0.86:
                 rgb = shade_metal(mix(face, (0.10, 0.08, 0.06), 0.28), normal[0], normal[1], 0.0)
             elif dist > 0.72:
@@ -96,6 +95,14 @@ def stamp_well(px: list[int], inside, face: tuple[float, float, float]) -> bytes
             else:
                 well = clamp((0.72 - dist) / 0.72)
                 rgb = shade_metal(mix(face, (0.03, 0.03, 0.02), 0.42 + well * 0.18), normal[0], normal[1], well)
+            # faceted jewel highlights (maps to embossed foil on print)
+            theta = math.atan2(y - cy, x - cx)
+            facet = abs(math.sin(theta * 4.0 + 0.4))
+            if dist > 0.55:
+                gem = mix(face, (0.98, 0.95, 0.88), facet * 0.22)
+                rgb = mix(rgb, gem, 0.35)
+            if dist > 0.78 and facet > 0.82:
+                rgb = mix(rgb, (1.0, 0.98, 0.92), 0.18)
             put(px, x, y, rgb, a)
     return downsample(px)
 

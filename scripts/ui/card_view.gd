@@ -9,13 +9,23 @@ signal inspected(data: Dictionary)
 const LocaleScript = preload("res://scripts/ui/locale.gd")
 const ThemeFactoryScript = preload("res://scripts/ui/theme_factory.gd")
 const BattlefieldChromeScript = preload("res://scripts/ui/battlefield_chrome.gd")
+const CardPrintSpecScript = preload("res://scripts/ui/card_print_spec.gd")
 const ART_VIGNETTE_SHADER := preload("res://shaders/card_art_vignette.gdshader")
+const FOIL_SHADER := preload("res://shaders/card_foil.gdshader")
+const STOCK_SHADER := preload("res://shaders/card_stock.gdshader")
 
 const MODE_SIZES := {
 	"catalog": Vector2(180, 252),
 	"hand": Vector2(116, 162),
 	"battlefield": Vector2(80, 112),
 	"hidden": Vector2(116, 162),
+}
+
+const RARITY_FOIL_INTENSITY := {
+	"Standard": 0.52,
+	"Limited": 0.68,
+	"Special": 0.82,
+	"Elite": 1.05,
 }
 
 const RARITY_PIP_COLORS := {
@@ -67,19 +77,6 @@ func _ready() -> void:
 	_ensure_frame_polish()
 
 
-func _draw() -> void:
-	if card_data.get("hidden", false) or not get_node("Frame").visible:
-		return
-	var palette: Dictionary = role_palette(card_data)
-	var bracket := (palette["border"] as Color).lightened(0.18)
-	bracket.a = 0.62
-	var inset := Rect2(Vector2(3.5, 3.5), size - Vector2(7.0, 7.0))
-	BattlefieldChromeScript.draw_corner_brackets(self, inset, bracket, 9.0, 1.25)
-	var stitch := (palette["border"] as Color).darkened(0.22)
-	stitch.a = 0.28
-	BattlefieldChromeScript.draw_stitches(self, inset.grow(-1.0), stitch)
-
-
 func bind(data: Dictionary, display_mode: String) -> void:
 	assert(MODE_SIZES.has(display_mode), "Unsupported card display mode: %s" % display_mode)
 	_reset_hover()
@@ -98,6 +95,7 @@ func bind(data: Dictionary, display_mode: String) -> void:
 	card_data = {"hidden": true} if hidden else data.duplicate(true)
 	get_node("CardBack").visible = hidden
 	get_node("Frame").visible = not hidden
+	_set_collectible_overlays_visible(not hidden)
 	_base_tooltip = "" if hidden else str(data.get("description", ""))
 	tooltip_text = _base_tooltip
 	_apply_back_tint(data)
@@ -140,12 +138,37 @@ func set_action_state(state: String, reason: String = "") -> void:
 			fill = fill.darkened(0.18)
 			border = Color(0.36, 0.36, 0.34)
 	var glow := state in ["legal", "selected"]
-	add_theme_stylebox_override("normal", _card_style(fill if state != "unavailable" else Color("171616"), border, 4 if glow else 2))
-	add_theme_stylebox_override("hover", _card_style(fill.lightened(0.08), border.lightened(0.12), 5 if glow else 3))
+	add_theme_stylebox_override("normal", _card_style(fill if state != "unavailable" else Color("171616"), border, 4 if glow else 0))
+	add_theme_stylebox_override("hover", _card_style(fill.lightened(0.08), border.lightened(0.12), 5 if glow else 0))
 	self_modulate = Color(0.68, 0.68, 0.68, 1.0) if state == "unavailable" else Color.WHITE
+	_apply_foil_state(state, palette)
 	if state == "legal":
 		_start_legal_pulse()
-	queue_redraw()
+
+
+func _set_collectible_overlays_visible(show_overlays: bool) -> void:
+	get_node("FrameOverlay").visible = show_overlays
+	get_node("FoilOverlay").visible = show_overlays
+
+
+func _apply_foil_state(state: String, palette: Dictionary) -> void:
+	var foil := get_node("FoilOverlay") as TextureRect
+	var material := foil.material as ShaderMaterial
+	if material == null:
+		return
+	var rarity := str(card_data.get("rarity", "Standard"))
+	var base := float(RARITY_FOIL_INTENSITY.get(rarity, 0.52))
+	match state:
+		"legal":
+			base *= 1.22
+		"selected":
+			base *= 1.35
+		"unavailable":
+			base *= 0.35
+	material.set_shader_parameter("intensity", base)
+	var tint: Color = palette["border"] as Color
+	tint = tint.lerp(Color("f5e6a8"), 0.28)
+	material.set_shader_parameter("tint_color", tint)
 
 
 func _make_custom_tooltip(_for_text: String) -> Object:
@@ -374,9 +397,12 @@ func _style_nameplate(title: Label, banner: Control, type: Label, description: C
 	plate.anti_aliasing = true
 	if banner is Panel:
 		(banner as Panel).add_theme_stylebox_override("panel", plate)
-	title.add_theme_color_override("font_color", Color(0.95, 0.89, 0.72, 0.98))
-	title.add_theme_color_override("font_outline_color", Color(0.05, 0.04, 0.03, 0.88))
+	title.add_theme_color_override("font_color", Color(0.98, 0.93, 0.78, 0.98))
+	title.add_theme_color_override("font_outline_color", Color(0.04, 0.03, 0.02, 0.92))
 	title.add_theme_constant_override("outline_size", 3)
+	title.add_theme_color_override("font_shadow_color", Color(0.02, 0.02, 0.01, 0.55))
+	title.add_theme_constant_override("shadow_offset_x", 0)
+	title.add_theme_constant_override("shadow_offset_y", 1)
 	type.add_theme_color_override("font_color", Color(0.86, 0.78, 0.58, 0.92))
 	type.add_theme_color_override("font_outline_color", Color(0.05, 0.04, 0.03, 0.80))
 	type.add_theme_constant_override("outline_size", 2)
@@ -433,10 +459,27 @@ func _apply_semantic_accents(data: Dictionary) -> void:
 	get_node("Frame/Type").add_theme_color_override("font_color", (palette["strip"] as Color).lightened(0.12))
 	_apply_inner_frame(palette)
 	_style_artwork_trim(palette)
-	add_theme_stylebox_override("normal", _card_style(palette["fill"] as Color, palette["border"] as Color, 2))
-	add_theme_stylebox_override("hover", _card_style((palette["fill"] as Color).lightened(0.08), (palette["border"] as Color).lightened(0.12), 3))
-	add_theme_stylebox_override("pressed", _card_style((palette["fill"] as Color).darkened(0.08), (palette["border"] as Color).lightened(0.08), 3))
-	queue_redraw()
+	_apply_foil_accent(data, palette)
+	add_theme_stylebox_override("normal", _card_style(palette["fill"] as Color, palette["border"] as Color, 0))
+	add_theme_stylebox_override("hover", _card_style((palette["fill"] as Color).lightened(0.08), (palette["border"] as Color).lightened(0.12), 0))
+	add_theme_stylebox_override("pressed", _card_style((palette["fill"] as Color).darkened(0.08), (palette["border"] as Color).lightened(0.08), 0))
+
+
+func _apply_foil_accent(data: Dictionary, palette: Dictionary) -> void:
+	var foil := get_node("FoilOverlay") as TextureRect
+	var material := foil.material as ShaderMaterial
+	if material == null:
+		material = ShaderMaterial.new()
+		material.shader = FOIL_SHADER
+		foil.material = material
+	var rarity := str(data.get("rarity", "Standard"))
+	material.set_shader_parameter("intensity", RARITY_FOIL_INTENSITY.get(rarity, 0.52))
+	var tint: Color = palette["border"] as Color
+	if rarity == "Elite":
+		tint = tint.lerp(Color("f2d56a"), 0.45)
+	elif rarity == "Special":
+		tint = tint.lerp(Color("c9a0e8"), 0.25)
+	material.set_shader_parameter("tint_color", tint)
 
 
 func _ensure_frame_polish() -> void:
@@ -444,7 +487,17 @@ func _ensure_frame_polish() -> void:
 		return
 	_frame_polish_ready = true
 	var inner := get_node("Frame/FrameInner") as Panel
-	inner.material = BattlefieldChromeScript.paper_material(0.055)
+	var stock := ShaderMaterial.new()
+	stock.shader = STOCK_SHADER
+	stock.set_shader_parameter("grain", 0.055)
+	stock.set_shader_parameter("weave", 0.022)
+	inner.material = stock
+	var frame_overlay := get_node("FrameOverlay") as TextureRect
+	if frame_overlay.texture == null and ResourceLoader.exists(CardPrintSpecScript.FRAME_TEXTURE):
+		frame_overlay.texture = load(CardPrintSpecScript.FRAME_TEXTURE)
+	var foil := get_node("FoilOverlay") as TextureRect
+	if foil.texture == null and ResourceLoader.exists(CardPrintSpecScript.FOIL_MASK_TEXTURE):
+		foil.texture = load(CardPrintSpecScript.FOIL_MASK_TEXTURE)
 	var sheen := get_node("Frame/ArtworkSheen") as TextureRect
 	sheen.texture = _artwork_sheen_texture()
 	sheen.modulate = Color(1, 1, 1, 0.92)
@@ -513,15 +566,15 @@ func _style_rarity_pip(rarity: String) -> void:
 
 func _card_style(fill: Color, border: Color, width: int) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
-	style.bg_color = fill
+	style.bg_color = Color(fill.r, fill.g, fill.b, 0.0)
 	style.border_color = border
 	style.set_border_width_all(width)
-	style.border_width_bottom = width + 1
-	style.border_width_top = maxi(width - 1, 1)
+	style.border_width_bottom = width + 1 if width > 0 else 0
+	style.border_width_top = maxi(width - 1, 0)
 	style.set_corner_radius_all(6)
-	style.set_expand_margin_all(1.0 if width >= 4 else 0.0)
-	style.shadow_color = Color(0.015, 0.012, 0.008, 0.58)
-	style.shadow_size = 5 if width >= 3 else 2
+	style.set_expand_margin_all(2.0 if width >= 4 else 0.0)
+	style.shadow_color = Color(0.015, 0.012, 0.008, 0.45 if width >= 3 else 0.0)
+	style.shadow_size = 6 if width >= 3 else 0
 	style.shadow_offset = Vector2(0, 2)
 	style.anti_aliasing = true
 	return style

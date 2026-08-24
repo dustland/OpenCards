@@ -1,7 +1,10 @@
-[gd_scene load_steps=12 format=3]
+[gd_scene load_steps=15 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/card_view.gd" id="1_script"]
 [ext_resource type="Shader" path="res://shaders/card_art_vignette.gdshader" id="7_vignette_shader"]
+[ext_resource type="Shader" path="res://shaders/card_foil.gdshader" id="8_foil_shader"]
+[ext_resource type="Texture2D" path="res://game_assets/ui/card_frame.png" id="9_frame"]
+[ext_resource type="Texture2D" path="res://game_assets/ui/card_frame_foil.png" id="10_foil"]
 [ext_resource type="Texture2D" path="res://game_assets/ui/card_back.png" id="2_card_back"]
 [ext_resource type="Texture2D" path="res://game_assets/ui/badge_cost.png" id="3_badge_cost"]
 [ext_resource type="Texture2D" path="res://game_assets/ui/badge_attack.png" id="4_badge_attack"]
@@ -9,16 +12,11 @@
 [ext_resource type="Texture2D" path="res://game_assets/ui/badge_operate.png" id="6_badge_operate"]
 
 [sub_resource type="StyleBoxFlat" id="StyleCard"]
-bg_color = Color(0.086, 0.11, 0.09, 1)
-border_width_left = 2
-border_width_top = 2
-border_width_right = 2
-border_width_bottom = 3
-border_color = Color(0.72, 0.61, 0.34, 1)
-corner_radius_top_left = 6
-corner_radius_top_right = 6
-corner_radius_bottom_right = 6
-corner_radius_bottom_left = 6
+bg_color = Color(0, 0, 0, 0)
+border_width_left = 0
+border_width_top = 0
+border_width_right = 0
+border_width_bottom = 0
 
 [sub_resource type="StyleBoxFlat" id="StyleFrameInner"]
 bg_color = Color(0.07, 0.09, 0.075, 1)
@@ -52,6 +50,11 @@ corner_radius_top_left = 2
 corner_radius_top_right = 2
 corner_radius_bottom_right = 2
 corner_radius_bottom_left = 2
+
+[sub_resource type="ShaderMaterial" id="MaterialFoil"]
+shader = ExtResource("8_foil_shader")
+shader_parameter/tint_color = Color(0.82, 0.68, 0.36, 1)
+shader_parameter/intensity = 0.72
 
 [sub_resource type="ShaderMaterial" id="MaterialArtVignette"]
 shader = ExtResource("7_vignette_shader")
@@ -395,3 +398,28 @@ mouse_filter = 2
 expand_mode = 1
 stretch_mode = 5
 texture = ExtResource("5_badge_defense")
+
+[node name="FrameOverlay" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 6
+texture = ExtResource("9_frame")
+
+[node name="FoilOverlay" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+material = SubResource("MaterialFoil")
+expand_mode = 1
+stretch_mode = 6
+texture = ExtResource("10_foil")
