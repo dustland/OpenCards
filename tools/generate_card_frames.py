@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""Generate premium collectible card frame assets for OpenCards.
+"""Generate metal / acrylic engraved card frame assets for OpenCards.
 
-Outputs (game_assets/ui/):
-  card_frame.png       750x1050  ornate border + matte panels (transparent art window)
-  card_frame_foil.png  750x1050  foil-stamp mask (white = hot-foil / holo areas)
+AmEx Centurion-inspired: matte gunmetal base, laser-etched grooves with
+top-left specular catch. Outputs:
+  card_frame.png       750×1050 RGBA — engraved plate (transparent art window)
+  card_frame_foil.png  750×1050 — glint mask (raised edge catch-light zones)
 
-Design goal: museum-grade TCG frame suitable as a print-master placeholder until
-commissioned border art replaces the procedural filigree.
+Physical mapping:
+  Aluminum + laser engrave, or acrylic + CNC/UV print + white ink in grooves.
 """
 
 from __future__ import annotations
@@ -25,8 +26,9 @@ ART_BOTTOM = 533
 TEXT_TOP = 548
 TEXT_BOTTOM = 917
 STATS_TOP = 927
-INSET_X = 21
-ROLE_STRIP_W = 17
+INSET_X = 24
+ROLE_STRIP_W = 14
+CORNER_R = 28.0
 
 
 def write_png(path: str, width: int, height: int, pixels: bytearray) -> None:
@@ -48,65 +50,6 @@ def write_png(path: str, width: int, height: int, pixels: bytearray) -> None:
     )
     with open(path, "wb") as fh:
         fh.write(png)
-
-
-def read_png_rgba(path: str) -> tuple[int, int, bytearray]:
-    with open(path, "rb") as fh:
-        if fh.read(8) != b"\x89PNG\r\n\x1a\n":
-            raise ValueError("not png")
-        width = height = 0
-        color_type = 6
-        idat = bytearray()
-        while True:
-            header = fh.read(8)
-            if len(header) < 8:
-                break
-            length, tag = struct.unpack(">I4s", header)
-            data = fh.read(length)
-            fh.read(4)
-            if tag == b"IHDR":
-                width, height, _bit, color_type = struct.unpack(">IIBB", data[:10])
-            elif tag == b"IDAT":
-                idat.extend(data)
-        bpp = 4 if color_type == 6 else 3 if color_type == 2 else 1
-        stride = width * bpp
-        dec = zlib.decompress(bytes(idat))
-        raw_rows = bytearray()
-        prev = bytearray(stride)
-        i = 0
-        for _row in range(height):
-            filt = dec[i]
-            i += 1
-            row_bytes = bytearray(dec[i : i + stride])
-            i += stride
-            if filt == 1:
-                for c in range(bpp, stride):
-                    row_bytes[c] = (row_bytes[c] + row_bytes[c - bpp]) & 255
-            elif filt == 2:
-                for c in range(stride):
-                    row_bytes[c] = (row_bytes[c] + prev[c]) & 255
-            elif filt == 3:
-                for c in range(stride):
-                    left = row_bytes[c - bpp] if c >= bpp else 0
-                    row_bytes[c] = (row_bytes[c] + ((left + prev[c]) >> 1)) & 255
-            elif filt == 4:
-                for c in range(stride):
-                    a = row_bytes[c - bpp] if c >= bpp else 0
-                    b = prev[c]
-                    cpa = prev[c - bpp] if c >= bpp else 0
-                    p = a + b - cpa
-                    pa, pb, pc = abs(p - a), abs(p - b), abs(p - cpa)
-                    pr = pa if pa <= pb and pa <= pc else (pb if pb <= pc else pc)
-                    row_bytes[c] = (row_bytes[c] + pr) & 255
-            prev = row_bytes
-            if bpp == 4:
-                raw_rows.extend(row_bytes)
-            else:
-                for px in range(width):
-                    o = px * bpp
-                    raw_rows.extend(row_bytes[o : o + 3])
-                    raw_rows.append(255)
-    return width, height, raw_rows
 
 
 def clamp01(v: float) -> float:
@@ -148,159 +91,155 @@ def rounded_rect_sdf(x: float, y: float, cx: float, cy: float, hw: float, hh: fl
     return outside + inside - r
 
 
-def metal_shade(base, nx: float, ny: float, hi, mid, lo):
-    lamp = clamp01(0.52 + (-nx * 0.34 - ny * 0.58) * 0.55)
-    col = mix(lo, hi, lamp)
-    spec = clamp01(1.0 - math.hypot(nx + 0.25, ny + 0.32) * 1.8)
-    col = mix(col, hi, spec * 0.22)
-    return mix(base, col, 0.92)
-
-
-def laurel_medallion(x: float, y: float, ox: float, oy: float, radius: float) -> float:
-    dx, dy = x - ox, y - oy
-    dist = math.hypot(dx, dy)
-    if dist > radius + 6:
-        return 0.0
-    theta = math.atan2(dy, dx)
-    leaves = 0.55 + 0.45 * abs(math.sin(theta * 7.0 + dist * 0.04))
-    ring = abs(dist - (radius - 4))
-    core = clamp01(1.0 - dist / (radius - 10)) if dist < radius - 10 else 0.0
-    outer = clamp01(1.0 - ring / 3.5) if ring < 3.5 else 0.0
-    return max(core * 0.55, outer * leaves)
-
-
-def scroll_column(x: float, y: float, sx: float, y0: float, y1: float) -> float:
-    if y < y0 or y > y1 or abs(x - sx) > 5:
-        return 0.0
-    t = (y - y0) / (y1 - y0)
-    wave = math.sin(t * math.pi * 6.0) * 3.2
-    return clamp01(1.0 - abs(x - sx - wave) / 1.8)
-
-
 def art_layout():
     art_cx = W * 0.5
     art_cy = (ART_TOP + ART_BOTTOM) * 0.5
-    art_hw = (W - INSET_X * 2 - ROLE_STRIP_W - 8) * 0.5
-    art_hh = (ART_BOTTOM - ART_TOP) * 0.5 - 4
+    art_hw = (W - INSET_X * 2 - ROLE_STRIP_W - 10) * 0.5
+    art_hh = (ART_BOTTOM - ART_TOP) * 0.5 - 6
     return art_cx, art_cy, art_hw, art_hh
 
 
+# --- engraving helpers ---
+
+MATTE = (0.042, 0.044, 0.048)
+MATTE_HI = (0.055, 0.057, 0.062)
+GROOVE = (0.014, 0.015, 0.017)
+SPEC = (0.78, 0.81, 0.86)
+SPEC_WARM = (0.84, 0.78, 0.68)
+
+
+def brushed_base(x: int, y: int, u: float, v: float, grain_fn) -> tuple:
+    n = grain_fn(u, v)
+    streak = math.sin(y * 0.42 + n * 4.0) * 0.5 + 0.5
+    base = mix(MATTE, MATTE_HI, streak * 0.12 + n * 0.08)
+    return base
+
+
+def groove_strength(dist: float, half_w: float = 2.2) -> float:
+    if dist > half_w:
+        return 0.0
+    t = 1.0 - dist / half_w
+    return t * t
+
+
+def apply_groove(base, dist: float, lx: float = -0.7, ly: float = -0.7, half_w: float = 2.2):
+    g = groove_strength(dist, half_w)
+    if g <= 0.0:
+        return base, 0.0
+    out = mix(base, GROOVE, g * 0.92)
+    # Specular on the "upper-left" lip of the trench (light from NW).
+    edge = clamp01(1.0 - dist / 0.75) if dist < 0.75 else 0.0
+    spec = edge * g * 0.85
+    out = mix(out, SPEC, spec)
+    return out, spec
+
+
+def dist_to_hline(y: float, y0: float) -> float:
+    return abs(y - y0)
+
+
+def dist_to_vline(x: float, x0: float) -> float:
+    return abs(x - x0)
+
+
+def dist_to_rounded_border(x: float, y: float, inset_target: float) -> float:
+    inset = min(x, y, W - 1 - x, H - 1 - y)
+    return abs(inset - inset_target)
+
+
 def gen_card_frame(path: str) -> None:
-    grain = value_noise(SEED + 1, 28, 40)
-    micro = value_noise(SEED + 3, 64, 90)
+    grain = value_noise(SEED + 10, 32, 48)
     px = bytearray(W * H * 4)
-
-    brass_hi = (0.90, 0.78, 0.46)
-    brass = (0.70, 0.58, 0.32)
-    brass_lo = (0.34, 0.27, 0.14)
-    matte_top = (0.10, 0.095, 0.082)
-    matte_bot = (0.065, 0.060, 0.052)
-    parchment = (0.13, 0.115, 0.09)
-    ink = (0.18, 0.14, 0.10)
-
     art_cx, art_cy, art_hw, art_hh = art_layout()
 
     for y in range(H):
         v = y / (H - 1)
         for x in range(W):
             u = x / (W - 1)
-            inset = min(x, y, W - 1 - x, H - 1 - y)
-            base = mix(matte_top, matte_bot, v ** 0.88)
-            n = grain(u, v)
-            scratch = micro(u * 3.0, v * 3.0)
-            base = (base[0] * (0.88 + 0.20 * n), base[1] * (0.88 + 0.20 * n), base[2] * (0.88 + 0.20 * n))
-
-            # soft spotlight behind art (printed cards often have subtle field lift)
-            sx = (x - art_cx) / (art_hw + 40)
-            sy = (y - art_cy) / (art_hh + 60)
-            spot = clamp01(1.0 - math.hypot(sx, sy * 0.9))
-            base = mix(base, parchment, spot * 0.07)
-
+            base = brushed_base(x, y, u, v, grain)
             alpha = 1.0
+            glint_hint = 0.0
 
-            # outer rail: solid beveled brass (NO diagonal lattice)
-            if inset <= 24:
-                nx = (inset - 12) / 12.0 if inset <= 12 else (24 - inset) / 12.0
-                ny = math.sin((x + y) * 0.03 + scratch * 6.0) * 0.15
-                if inset <= 8:
-                    col = metal_shade(base, nx, ny, brass_hi, brass, brass_lo)
-                elif inset <= 12:
-                    col = mix(brass_lo, ink, 0.72)
-                elif inset <= 20:
-                    col = metal_shade(base, nx + 0.2, ny, brass, brass_lo, ink)
-                else:
-                    col = mix(ink, brass_lo, 0.35)
-                base = mix(base, col, 0.96)
+            # Outer card edge bevel (rolled metal edge)
+            inset = min(x, y, W - 1 - x, H - 1 - y)
+            if inset < 6:
+                bevel = inset / 6.0
+                col = mix(GROOVE, SPEC if inset < 2 else MATTE_HI, bevel)
+                base = mix(base, col, 0.94)
+                if inset <= 2:
+                    glint_hint = max(glint_hint, 0.9)
 
-            # inner pinstripe
-            if 27 <= inset <= 29:
-                base = mix(base, brass_hi, 0.78)
+            # Double hairline border (credit-card register)
+            for target in (18.0, 22.0):
+                d = dist_to_rounded_border(x, y, target)
+                base, spec = apply_groove(base, d, half_w=1.4)
+                glint_hint = max(glint_hint, spec)
 
-            # corner laurel medallions (larger, more "medal" than rosette)
-            for ox, oy in ((46, 46), (W - 46, 46), (46, H - 46), (W - 46, H - 46)):
-                m = laurel_medallion(x, y, ox, oy, 36.0)
-                if m > 0.04:
-                    col = mix(brass_lo, brass_hi, m)
-                    base = mix(base, col, m * 0.94)
+            # Inner frame line
+            d = dist_to_rounded_border(x, y, 30.0)
+            base, spec = apply_groove(base, d, half_w=1.2)
+            glint_hint = max(glint_hint, spec)
 
-            # vertical scroll filigree beside art/text column
-            for sx in (INSET_X + ROLE_STRIP_W + 12, W - INSET_X - 12):
-                s = scroll_column(x, y, sx, ART_TOP - 8, TEXT_BOTTOM + 8)
-                if s > 0.05:
-                    base = mix(base, mix(brass_lo, brass_hi, s), s * 0.75)
+            # Corner miter accents (Centurion-style subtle ticks)
+            for ox, oy, sx, sy in ((34, 34, 1, 1), (W - 34, 34, -1, 1), (34, H - 34, 1, -1), (W - 34, H - 34, -1, -1)):
+                if abs(x - ox) <= 14 and abs(y - oy) <= 1.8 and (x - ox) * sx >= 0:
+                    base, spec = apply_groove(base, abs(y - oy), half_w=1.0)
+                    glint_hint = max(glint_hint, spec)
+                if abs(y - oy) <= 14 and abs(x - ox) <= 1.8 and (y - oy) * sy >= 0:
+                    base, spec = apply_groove(base, abs(x - ox), half_w=1.0)
+                    glint_hint = max(glint_hint, spec)
 
-            # role channel (inset colored strip in-engine; groove only here)
-            if 26 <= x <= 26 + ROLE_STRIP_W and 40 <= y <= H - 40:
-                groove = 0.5 + 0.5 * math.sin(y * 0.045)
-                base = mix(base, mix(ink, brass_lo, groove), 0.62)
+            # Role channel (vertical trench)
+            if 32 <= x <= 32 + ROLE_STRIP_W and 38 <= y <= H - 38:
+                d = min(x - 32, 32 + ROLE_STRIP_W - x)
+                base, spec = apply_groove(base, d, half_w=2.0)
+                glint_hint = max(glint_hint, spec * 0.6)
 
-            # title cartouche rails
-            if y <= TITLE_BOTTOM + 2 and INSET_X + ROLE_STRIP_W + 8 <= x <= W - INSET_X - 8:
-                if abs(y - TITLE_BOTTOM) <= 2.5:
-                    base = mix(base, brass_hi, 0.85)
-                elif abs(y - 20) <= 2.0:
-                    base = mix(base, brass, 0.72)
-                elif abs(x - (INSET_X + ROLE_STRIP_W + 8)) <= 2 or abs(x - (W - INSET_X - 8)) <= 2:
-                    if 24 <= y <= TITLE_BOTTOM - 8:
-                        base = mix(base, brass_lo, 0.58)
+            # Title divider
+            if INSET_X + ROLE_STRIP_W + 8 <= x <= W - INSET_X - 8:
+                d = dist_to_hline(y, TITLE_BOTTOM)
+                base, spec = apply_groove(base, d, half_w=1.8)
+                glint_hint = max(glint_hint, spec)
+                d2 = dist_to_hline(y, 22.0)
+                base, spec = apply_groove(base, d2, half_w=1.2)
+                glint_hint = max(glint_hint, spec * 0.7)
 
-            # rules panel rails
-            if TEXT_TOP <= y <= TEXT_BOTTOM and INSET_X + ROLE_STRIP_W + 10 <= x <= W - INSET_X - 10:
-                if abs(y - TEXT_TOP) <= 2 or abs(y - TEXT_BOTTOM) <= 2:
-                    base = mix(base, brass, 0.68)
-                if abs(x - (INSET_X + ROLE_STRIP_W + 10)) <= 1.5 or abs(x - (W - INSET_X - 10)) <= 1.5:
-                    if (y - TEXT_TOP) % 48 < 6:
-                        base = mix(base, brass_lo, 0.42)
+            # Text panel rails
+            if TEXT_TOP <= y <= TEXT_BOTTOM and INSET_X + ROLE_STRIP_W + 12 <= x <= W - INSET_X - 12:
+                for yy in (TEXT_TOP, TEXT_BOTTOM):
+                    base, spec = apply_groove(base, dist_to_hline(y, yy), half_w=1.5)
+                    glint_hint = max(glint_hint, spec)
+                for xx in (INSET_X + ROLE_STRIP_W + 12, W - INSET_X - 12):
+                    if abs(x - xx) <= 1.2 and (y - TEXT_TOP) % 64 < 5:
+                        base, spec = apply_groove(base, abs(x - xx), half_w=1.0)
+                        glint_hint = max(glint_hint, spec * 0.5)
 
-            # stats shelf
-            if STATS_TOP <= y <= H - 28 and INSET_X + 8 <= x <= W - INSET_X - 8:
-                if abs(y - STATS_TOP) <= 2.5:
-                    base = mix(base, brass_hi, 0.80)
-                if y >= H - 30 and abs(y - (H - 28)) <= 2:
-                    base = mix(base, brass_lo, 0.55)
+            # Stats shelf
+            if abs(y - STATS_TOP) <= 1.5 and INSET_X + 8 <= x <= W - INSET_X - 8:
+                base, spec = apply_groove(base, abs(y - STATS_TOP), half_w=1.4)
+                glint_hint = max(glint_hint, spec)
 
-            # stat medallion rings (bottom corners — numbers render in-engine)
-            for mx in (INSET_X + 56, W - INSET_X - 56):
-                my = H - 54
-                d = math.hypot(x - mx, y - my)
-                if 24 <= d <= 30:
-                    base = mix(base, brass_hi, 0.82)
-                elif 20 <= d < 24:
-                    base = mix(base, brass_lo, 0.55)
+            # Stat well rings (laser-cut recess)
+            for mx in (INSET_X + 58, W - INSET_X - 58):
+                my = H - 56
+                d = abs(math.hypot(x - mx, y - my) - 26)
+                base, spec = apply_groove(base, d, half_w=2.0)
+                glint_hint = max(glint_hint, spec * 0.85)
 
-            # art window: dark groove + gold lip + transparent center
-            art_sdf = rounded_rect_sdf(x, y, art_cx, art_cy, art_hw, art_hh, 16.0)
-            if art_sdf < -3.0:
+            # Art inset: deep channel + transparent center (photo window in metal)
+            art_sdf = rounded_rect_sdf(x, y, art_cx, art_cy, art_hw, art_hh, 12.0)
+            if art_sdf < -4.0:
                 alpha = 0.0
             elif art_sdf < 0.0:
-                groove = clamp01(1.0 + art_sdf / 3.0)
-                base = mix(base, ink, groove * 0.85)
-                alpha = 1.0
-            elif art_sdf < 8.0:
-                lip = clamp01(1.0 - art_sdf / 8.0)
-                lip_col = mix(brass_lo, brass_hi, lip ** 0.8)
-                base = mix(base, lip_col, lip * 0.96)
-                alpha = max(0.0, 1.0 - lip * 0.15)
+                depth = clamp01(1.0 + art_sdf / 4.0)
+                base = mix(base, GROOVE, depth * 0.95)
+                base = mix(base, (0.008, 0.009, 0.01), depth * 0.4)
+            elif art_sdf < 10.0:
+                lip = clamp01(1.0 - art_sdf / 10.0)
+                base, spec = apply_groove(base, art_sdf, half_w=3.5)
+                base = mix(base, mix(GROOVE, MATTE, 0.5), lip * 0.5)
+                glint_hint = max(glint_hint, spec)
+                alpha = max(0.0, 1.0 - lip * 0.12)
 
             o = (y * W + x) * 4
             px[o] = int(clamp01(base[0]) * 255)
@@ -312,6 +251,7 @@ def gen_card_frame(path: str) -> None:
 
 
 def gen_card_frame_foil(path: str) -> None:
+    """Glint mask: bright only on engraved edge catches (maps to polish/secondary op on acrylic)."""
     px = bytearray(W * H * 4)
     art_cx, art_cy, art_hw, art_hh = art_layout()
 
@@ -320,36 +260,37 @@ def gen_card_frame_foil(path: str) -> None:
             a = 0.0
             inset = min(x, y, W - 1 - x, H - 1 - y)
 
-            if inset <= 10 or (8 <= inset <= 12):
-                a = max(a, 0.94)
-            if 27 <= inset <= 29:
-                a = max(a, 0.80)
+            if inset <= 2:
+                a = max(a, 0.85)
 
-            for ox, oy in ((46, 46), (W - 46, 46), (46, H - 46), (W - 46, H - 46)):
-                a = max(a, laurel_medallion(x, y, ox, oy, 36.0) * 0.96)
+            for target in (18.0, 22.0, 30.0):
+                d = abs(min(x, y, W - 1 - x, H - 1 - y) - target)
+                if d < 0.8:
+                    a = max(a, clamp01(1.0 - d / 0.8) * 0.75)
 
-            for sx in (INSET_X + ROLE_STRIP_W + 12, W - INSET_X - 12):
-                a = max(a, scroll_column(x, y, sx, ART_TOP - 8, TEXT_BOTTOM + 8) * 0.70)
+            if 32 <= x <= 32 + ROLE_STRIP_W and 38 <= y <= H - 38:
+                d = min(x - 32, 32 + ROLE_STRIP_W - x)
+                if d < 0.9:
+                    a = max(a, 0.55)
 
-            if y <= TITLE_BOTTOM + 2 and INSET_X + ROLE_STRIP_W + 8 <= x <= W - INSET_X - 8:
-                if abs(y - TITLE_BOTTOM) <= 2.5 or abs(y - 20) <= 2.0:
-                    a = max(a, 0.88)
+            if INSET_X + ROLE_STRIP_W + 8 <= x <= W - INSET_X - 8:
+                for yy in (TITLE_BOTTOM, 22.0, TEXT_TOP, TEXT_BOTTOM, STATS_TOP):
+                    d = abs(y - yy)
+                    if d < 0.7:
+                        a = max(a, clamp01(1.0 - d / 0.7) * 0.7)
 
-            art_sdf = rounded_rect_sdf(x, y, art_cx, art_cy, art_hw, art_hh, 16.0)
-            if 0.0 <= art_sdf < 7.0:
-                a = max(a, clamp01(1.0 - art_sdf / 7.0) * 0.90)
+            art_sdf = rounded_rect_sdf(x, y, art_cx, art_cy, art_hw, art_hh, 12.0)
+            if 0.0 <= art_sdf < 2.5:
+                a = max(a, clamp01(1.0 - art_sdf / 2.5) * 0.92)
 
-            if STATS_TOP <= y <= H - 28 and abs(y - STATS_TOP) <= 2.5:
+            for mx in (INSET_X + 58, W - INSET_X - 58):
+                d = abs(math.hypot(x - mx, y - (H - 56)) - 26)
+                if d < 1.2:
+                    a = max(a, clamp01(1.0 - d / 1.2) * 0.8)
+
+            gx, gy = W - INSET_X - 32, 40
+            if math.hypot(x - gx, y - gy) <= 12:
                 a = max(a, 0.75)
-
-            gx, gy = W - INSET_X - 30, 38
-            if math.hypot(x - gx, y - gy) <= 15:
-                a = max(a, 0.95)
-
-            for mx in (INSET_X + 56, W - INSET_X - 56):
-                d = math.hypot(x - mx, y - (H - 54))
-                if 22 <= d <= 31:
-                    a = max(a, 0.78)
 
             o = (y * W + x) * 4
             v = int(a * 255)
@@ -370,7 +311,6 @@ def composite_print_proof(
     attack: str = "1",
     defense: str = "2",
 ) -> None:
-    """Compose a 750×1050 print proof PNG (frame + art + placeholder text blocks)."""
     try:
         from PIL import Image, ImageDraw, ImageFont
     except ImportError:
@@ -380,29 +320,32 @@ def composite_print_proof(
     frame = Image.open(frame_path).convert("RGBA")
     art = Image.open(art_path).convert("RGBA")
     canvas = frame.copy()
-
     art_cx, art_cy, art_hw, art_hh = art_layout()
     ax0 = int(art_cx - art_hw)
     ay0 = int(art_cy - art_hh)
-    box_w = int(art_hw * 2)
-    box_h = int(art_hh * 2)
-    fitted = art.resize((box_w, box_h), Image.Resampling.LANCZOS)
+    fitted = art.resize((int(art_hw * 2), int(art_hh * 2)), Image.Resampling.LANCZOS)
     canvas.paste(fitted, (ax0, ay0), fitted)
 
     draw = ImageDraw.Draw(canvas)
     try:
-        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf", 28)
-        small = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf", 36)
+        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 26)
+        small = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 34)
+        body = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 20)
     except OSError:
         font = ImageFont.load_default()
         small = font
+        body = font
 
+    silver = (198, 202, 210, 255)
+    dim = (120, 124, 132, 255)
     tw = draw.textlength(title.upper(), font=font)
-    draw.text(((W - tw) / 2, 42), title.upper(), fill=(235, 220, 180, 255), font=font)
-    draw.text((INSET_X + 38, H - 68), deploy, fill=(244, 234, 210, 255), font=small)
-    draw.text((W - INSET_X - 98, H - 68), attack, fill=(244, 234, 210, 255), font=small)
-    draw.text((W - INSET_X - 52, H - 68), defense, fill=(244, 234, 210, 255), font=small)
-    draw.text((INSET_X + ROLE_STRIP_W + 24, TEXT_TOP + 16), "Infantry. Deploy: Ready.", fill=(190, 178, 150, 255), font=font)
+    # Engraved type: bright lip + dark offset (simulates etched letterform)
+    draw.text(((W - tw) / 2 + 1, 44), title.upper(), fill=(20, 22, 26, 200), font=font)
+    draw.text(((W - tw) / 2, 42), title.upper(), fill=silver, font=font)
+    for label, px_x in ((deploy, INSET_X + 42), (attack, W - INSET_X - 102), (defense, W - INSET_X - 56)):
+        draw.text((px_x + 1, H - 66), label, fill=(16, 18, 22, 180), font=small)
+        draw.text((px_x, H - 67), label, fill=silver, font=small)
+    draw.text((INSET_X + ROLE_STRIP_W + 28, TEXT_TOP + 18), "Infantry. Deploy: Ready.", fill=dim, font=body)
 
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     canvas.save(out_path, "PNG")
@@ -416,7 +359,7 @@ def main(out_dir: str) -> None:
     gen_card_frame_foil(foil)
 
     art = os.path.join(os.path.dirname(out_dir), "generated_cards", "us-rifle-platoon.png")
-    proof = os.path.join(os.path.dirname(os.path.dirname(out_dir)), "builds", "qa", "print_proof_rifle_platoon.png")
+    proof = os.path.join(os.path.dirname(os.path.dirname(out_dir)), "builds", "qa", "print_proof_metal_rifle.png")
     if os.path.isfile(art):
         composite_print_proof(frame, art, proof)
 
@@ -424,4 +367,4 @@ def main(out_dir: str) -> None:
 if __name__ == "__main__":
     root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "game_assets", "ui")
     main(root)
-    print("generated card frames in", os.path.abspath(root))
+    print("generated metal engraved frames in", os.path.abspath(root))

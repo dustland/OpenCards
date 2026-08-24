@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" path="res://scripts/ui/card_view.gd" id="1_script"]
 [ext_resource type="Shader" path="res://shaders/card_art_vignette.gdshader" id="7_vignette_shader"]
-[ext_resource type="Shader" path="res://shaders/card_foil.gdshader" id="8_foil_shader"]
+[ext_resource type="Shader" path="res://shaders/card_metal_glint.gdshader" id="8_foil_shader"]
 [ext_resource type="Texture2D" path="res://game_assets/ui/card_frame.png" id="9_frame"]
 [ext_resource type="Texture2D" path="res://game_assets/ui/card_frame_foil.png" id="10_foil"]
 [ext_resource type="Texture2D" path="res://game_assets/ui/card_back.png" id="2_card_back"]
@@ -53,8 +53,8 @@ corner_radius_bottom_left = 2
 
 [sub_resource type="ShaderMaterial" id="MaterialFoil"]
 shader = ExtResource("8_foil_shader")
-shader_parameter/tint_color = Color(0.82, 0.68, 0.36, 1)
-shader_parameter/intensity = 0.72
+shader_parameter/tint_color = Color(0.78, 0.8, 0.84, 1)
+shader_parameter/intensity = 0.38
 
 [sub_resource type="ShaderMaterial" id="MaterialArtVignette"]
 shader = ExtResource("7_vignette_shader")
