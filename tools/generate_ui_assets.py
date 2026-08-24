@@ -241,15 +241,17 @@ def gen_battlefield_bg(path: str) -> None:
 def gen_card_back(path: str) -> None:
     W, H = 232, 324
     px = bytearray(W * H * 4)
-    base_top = (0.115, 0.135, 0.120)
-    base_bottom = (0.085, 0.10, 0.090)
-    brass = (0.60, 0.51, 0.29)
-    brass_dim = (0.34, 0.30, 0.185)
-    noise = value_noise(SEED + 11, 8, 12)
+    base_top = (0.118, 0.138, 0.122)
+    base_bottom = (0.082, 0.098, 0.088)
+    brass = (0.64, 0.54, 0.31)
+    brass_hi = (0.78, 0.68, 0.40)
+    brass_dim = (0.30, 0.26, 0.16)
+    noise = value_noise(SEED + 11, 10, 14)
+    weave = value_noise(SEED + 12, 6, 8)
 
     cx, cy = W / 2, H / 2
-    star_outer = 64.0
-    star_inner = 0.42
+    star_outer = 58.0
+    star_inner = 0.40
 
     for y in range(H):
         v = y / (H - 1)
@@ -257,36 +259,66 @@ def gen_card_back(path: str) -> None:
             u = x / (W - 1)
             base = mix(base_top, base_bottom, v)
             n = noise(u, v)
-            base = (base[0] * (0.93 + 0.14 * n), base[1] * (0.93 + 0.14 * n), base[2] * (0.93 + 0.14 * n))
+            w = weave(u * 1.4, v * 1.2)
+            base = (base[0] * (0.91 + 0.16 * n), base[1] * (0.91 + 0.16 * n), base[2] * (0.91 + 0.16 * n))
+            # subtle herringbone weave in the inner field
+            hb = abs((x + y) % 9 - 4.5) / 4.5
+            if 14 < min(x, y, W - 1 - x, H - 1 - y) < 108:
+                base = mix(base, brass_dim, (1.0 - hb) * 0.08 * (0.55 + 0.45 * w))
+
+            # radial spotlight behind emblem
+            dxs, dys = (x - cx) / (W * 0.42), (y - cy) / (H * 0.48)
+            spot = clamp01(1.0 - math.hypot(dxs, dys))
+            base = mix(base, (0.16, 0.15, 0.11), spot * 0.10)
 
             # diagonal lattice (45 deg, period 17px)
             d = (x + y) % 17
             if d <= 1 or (x - y) % 17 in (0, 1):
-                base = mix(base, brass_dim, 0.55)
+                base = mix(base, brass_dim, 0.48)
 
-            # borders: outer 5px, inner 2px at inset 11
             inset = min(x, y, W - 1 - x, H - 1 - y)
-            if inset < 5 or (10 <= inset <= 11) or (14 <= inset <= 15):
-                edge = 0.75 + 0.25 * math.sin((x + y) * 0.5)
-                col = (brass[0] * edge, brass[1] * edge, brass[2] * edge)
-                base = mix(base, col, 0.9)
+            # outer brass rail with bevel
+            if inset < 5:
+                edge = 0.70 + 0.30 * math.sin((x + y) * 0.45)
+                col = mix(brass_dim, brass_hi if inset < 2 else brass, edge)
+                base = mix(base, col, 0.92)
+            elif inset == 5:
+                base = mix(base, (0.05, 0.04, 0.03), 0.55)
+            elif 10 <= inset <= 11:
+                base = mix(base, brass_dim, 0.72)
+            elif 14 <= inset <= 15:
+                base = mix(base, brass, 0.55)
 
-            # center star emblem
+            # center star emblem with inner ring
             dx, dy = x - cx, y - cy
             dist = math.hypot(dx, dy)
             theta = (math.atan2(dy, dx) / (2 * math.pi) + 1.0) % 1.0
             sr = star_radius(theta, 5, star_inner) * star_outer
+            if dist <= sr * 0.42:
+                base = mix(base, brass_dim, 0.35)
             if dist <= sr:
-                base = mix(base, (0.19, 0.18, 0.135), 0.88)   # dark fill
-            if abs(dist - sr) <= 1.4:
-                base = mix(base, brass, 0.95)                # brass outline
-            if abs(dist - (star_outer + 16)) <= 1.2:         # halo ring
-                base = mix(base, brass_dim, 0.8)
+                base = mix(base, (0.17, 0.16, 0.12), 0.90)
+            if abs(dist - sr) <= 1.5:
+                base = mix(base, brass_hi, 0.96)
+            if abs(dist - (star_outer + 14)) <= 1.1:
+                base = mix(base, brass, 0.82)
+            if abs(dist - (star_outer + 22)) <= 0.9:
+                base = mix(base, brass_dim, 0.70)
 
             # corner rivets just inside inner border
-            for rx, ry in ((18, 18), (W - 18, 18), (18, H - 18), (W - 18, H - 18)):
-                if math.hypot(x - rx, y - ry) <= 3.2:
-                    base = mix(base, brass, 0.9)
+            for rx, ry in ((20, 20), (W - 20, 20), (20, H - 20), (W - 20, H - 20)):
+                rd = math.hypot(x - rx, y - ry)
+                if rd <= 3.4:
+                    base = mix(base, brass_hi, 0.92)
+                elif rd <= 4.6:
+                    base = mix(base, brass_dim, 0.55)
+
+            # corner bracket flourishes
+            for ox, oy, sx, sy in ((16, 16, 1, 1), (W - 17, 16, -1, 1), (16, H - 17, 1, -1), (W - 17, H - 17, -1, -1)):
+                if abs(x - ox) <= 10 and abs(y - oy) <= 2 and (x - ox) * sx >= 0:
+                    base = mix(base, brass, 0.75)
+                if abs(y - oy) <= 10 and abs(x - ox) <= 2 and (y - oy) * sy >= 0:
+                    base = mix(base, brass, 0.75)
 
             o = (y * W + x) * 4
             px[o] = int(clamp01(base[0]) * 255); px[o + 1] = int(clamp01(base[1]) * 255)

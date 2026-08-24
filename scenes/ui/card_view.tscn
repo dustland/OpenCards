@@ -1,6 +1,7 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/card_view.gd" id="1_script"]
+[ext_resource type="Shader" path="res://shaders/card_art_vignette.gdshader" id="7_vignette_shader"]
 [ext_resource type="Texture2D" path="res://game_assets/ui/card_back.png" id="2_card_back"]
 [ext_resource type="Texture2D" path="res://game_assets/ui/badge_cost.png" id="3_badge_cost"]
 [ext_resource type="Texture2D" path="res://game_assets/ui/badge_attack.png" id="4_badge_attack"]
@@ -51,6 +52,10 @@ corner_radius_top_left = 2
 corner_radius_top_right = 2
 corner_radius_bottom_right = 2
 corner_radius_bottom_left = 2
+
+[sub_resource type="ShaderMaterial" id="MaterialArtVignette"]
+shader = ExtResource("7_vignette_shader")
+shader_parameter/strength = 0.4
 
 [sub_resource type="StyleBoxFlat" id="StyleBack"]
 bg_color = Color(0.0901961, 0.121569, 0.105882, 1)
@@ -142,19 +147,27 @@ theme_override_styles/panel = SubResource("StyleFrameInner")
 
 [node name="CategoryStrip" type="ColorRect" parent="Frame"]
 layout_mode = 0
-offset_right = 3.0
+offset_right = 4.0
 offset_bottom = 244.0
 mouse_filter = 2
 color = Color(0.509804, 0.576471, 0.435294, 1)
 
-[node name="RarityPip" type="ColorRect" parent="Frame"]
+[node name="CategoryStripGlow" type="ColorRect" parent="Frame"]
 layout_mode = 0
-offset_left = 156.0
-offset_top = 4.0
-offset_right = 168.0
-offset_bottom = 10.0
+offset_left = 4.0
+offset_top = 1.0
+offset_right = 7.0
+offset_bottom = 243.0
 mouse_filter = 2
-color = Color(0.7, 0.62, 0.4, 1)
+color = Color(0.509804, 0.576471, 0.435294, 0.22)
+
+[node name="RarityPip" type="Panel" parent="Frame"]
+layout_mode = 0
+offset_left = 155.0
+offset_top = 3.0
+offset_right = 169.0
+offset_bottom = 11.0
+mouse_filter = 2
 
 [node name="TitleBanner" type="Panel" parent="Frame"]
 layout_mode = 0
@@ -201,6 +214,26 @@ offset_top = 28.0
 offset_right = -5.0
 offset_bottom = 114.0
 grow_horizontal = 2
+expand_mode = 1
+stretch_mode = 6
+
+[node name="ArtworkVignette" type="ColorRect" parent="Frame"]
+layout_mode = 0
+offset_left = 5.0
+offset_top = 28.0
+offset_right = 167.0
+offset_bottom = 114.0
+mouse_filter = 2
+color = Color(1, 1, 1, 1)
+material = SubResource("MaterialArtVignette")
+
+[node name="ArtworkSheen" type="TextureRect" parent="Frame"]
+layout_mode = 0
+offset_left = 5.0
+offset_top = 28.0
+offset_right = 167.0
+offset_bottom = 114.0
+mouse_filter = 2
 expand_mode = 1
 stretch_mode = 6
 
