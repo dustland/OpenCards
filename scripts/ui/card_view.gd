@@ -697,7 +697,7 @@ func set_duty_caption(text: String) -> void:
 	type.text = text
 	type.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	type.add_theme_font_size_override("font_size", 8)
-	type.add_theme_color_override("font_color", Color(0.92, 0.84, 0.58, 0.95))
+	type.add_theme_color_override("font_color", Color(0.78, 0.82, 0.88, 0.95))
 	type.add_theme_color_override("font_outline_color", Color(0.05, 0.04, 0.03, 0.86))
 	type.add_theme_constant_override("outline_size", 3)
 
