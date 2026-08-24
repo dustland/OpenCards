@@ -14,3 +14,7 @@ const PRINT_DPI := 300
 
 const FRAME_TEXTURE := "res://game_assets/ui/card_frame.png"
 const FOIL_MASK_TEXTURE := "res://game_assets/ui/card_frame_foil.png"
+
+## Procedural frames are print-layout placeholders. Production physical decks
+## should replace card_frame.png with commissioned border art while keeping
+## the same trim (750×1050) and foil-mask workflow.
