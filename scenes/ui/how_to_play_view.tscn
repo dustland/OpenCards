@@ -186,7 +186,7 @@ text = "Defense"
 [node name="Body" type="Label" parent="Center/Panel/Column/StepScroll/Steps/Step2"]
 layout_mode = 2
 autowrap_mode = 3
-text = "Hover a card to read what it does, including Blitz and Guard. The gold pip is deploy cost; the next pip is operate cost. Attack and defense sit at the top of the card. The gold pip above your hand is current Credit / the turn cap, which grows by 1 each turn."
+text = "Hover a card to read what it does, including Blitz and Guard. A bullet is a strike unit, a shield holds the line, and a cross is an Order or Countermeasure. Rust, steel, and gold frames match those marks. The brass coin is deploy cost; the gear is operate cost. The rust spearhead is attack and the steel shield is defense. The gold pip above your hand is current Credit / the turn cap, which grows by 1 each turn."
 
 [node name="Step3" type="VBoxContainer" parent="Center/Panel/Column/StepScroll/Steps"]
 layout_mode = 2

@@ -14,8 +14,7 @@ config/name="OpenCards"
 run/main_scene="res://scenes/main.tscn"
 config/features=PackedStringArray("4.7")
 boot_splash/bg_color=Color(0.04, 0.03, 0.02, 1)
-boot_splash/image="res://game_assets/ui/title_cover.png"
-boot_splash/fullsize=true
+boot_splash/show_image=false
 
 [display]
 

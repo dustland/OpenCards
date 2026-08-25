@@ -47,6 +47,7 @@ func _style_chrome() -> void:
 	%TitleLabel.add_theme_color_override("font_color", Color(0.97, 0.90, 0.68, 1))
 	%TitleLabel.add_theme_color_override("font_outline_color", Color(0.04, 0.03, 0.02, 0.90))
 	%TitleLabel.add_theme_constant_override("outline_size", 8)
+	%SubtitleLabel.add_theme_font_override("font", _tracked_font(2))
 	%SubtitleLabel.add_theme_font_size_override("font_size", 15 if compact else 17)
 	%SubtitleLabel.add_theme_color_override("font_color", Color(0.90, 0.82, 0.66, 0.94))
 	%SubtitleLabel.add_theme_color_override("font_outline_color", Color(0.04, 0.03, 0.02, 0.80))
@@ -69,6 +70,7 @@ func _style_chrome() -> void:
 		button.add_theme_stylebox_override("normal", quiet)
 		button.add_theme_stylebox_override("hover", quiet_hover)
 		button.add_theme_stylebox_override("pressed", quiet_hover)
+		button.add_theme_font_override("font", _tracked_font(2))
 		button.add_theme_font_size_override("font_size", 14)
 		button.add_theme_color_override("font_color", Color(0.86, 0.78, 0.60, 0.94))
 		button.add_theme_color_override("font_outline_color", Color(0.04, 0.03, 0.02, 0.80))
@@ -91,11 +93,7 @@ func _place_dock() -> void:
 
 
 func _tracked_font(spacing: int) -> Font:
-	var font := FontVariation.new()
-	if ThemeFactoryScript.UI_FONT != null:
-		font.base_font = ThemeFactoryScript.UI_FONT
-	font.spacing_glyph = spacing
-	return font
+	return ThemeFactoryScript.stacked(spacing, 0.05)
 
 
 func _play_enter() -> void:

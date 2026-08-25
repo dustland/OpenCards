@@ -8,12 +8,13 @@ const BRASS := Color("b89a5b")
 const BRASS_BRIGHT := Color("d1b56f")
 const TEXT := Color("e8e1d2")
 const MUTED_TEXT := Color("b9b2a2")
+const DISPLAY_FONT := preload("res://game_assets/ui/fonts/oswald_semibold.ttf")
 const UI_FONT := preload("res://game_assets/ui/fonts/ui_cjk.ttf")
 
 
 static func create() -> Theme:
 	var result := Theme.new()
-	var font := _ui_font()
+	var font := stacked()
 	result.default_font = font
 	for type_name in ["Label", "Button", "LineEdit", "RichTextLabel"]:
 		result.set_font("font", type_name, font)
@@ -38,17 +39,36 @@ static func create() -> Theme:
 	result.set_stylebox("disabled", "Button", _box(Color("202820"), Color("596257"), 1, 4, 10))
 	result.set_stylebox("normal", "LineEdit", _box(Color("151e18"), Color("6f765f"), 1, 3, 8))
 	result.set_stylebox("focus", "LineEdit", _box(Color("151e18"), BRASS_BRIGHT, 2, 3, 8))
+	result.set_font("font", "TooltipLabel", font)
+	result.set_font_size("font_size", "TooltipLabel", 13)
+	result.set_color("font_color", "TooltipLabel", TEXT)
+	result.set_color("font_shadow_color", "TooltipLabel", Color(0.04, 0.03, 0.02, 0.70))
+	result.set_constant("shadow_offset_x", "TooltipLabel", 0)
+	result.set_constant("shadow_offset_y", "TooltipLabel", 1)
+	result.set_stylebox("panel", "TooltipPanel", _tooltip_plaque())
 	return result
 
 
-static func _ui_font() -> Font:
+static func stacked(spacing := 0, embolden := 0.0) -> Font:
 	var font := FontVariation.new()
-	if ThemeDB.fallback_font != null:
-		font.base_font = ThemeDB.fallback_font
-		font.fallbacks = [UI_FONT]
-	else:
-		font.base_font = UI_FONT
+	font.base_font = DISPLAY_FONT
+	font.fallbacks = [UI_FONT]
+	font.spacing_glyph = spacing
+	font.variation_embolden = embolden
 	return font
+
+
+static func stamped(spacing := 1) -> Font:
+	return stacked(spacing, 0.15)
+
+
+static func _tooltip_plaque() -> StyleBoxFlat:
+	var box := _box(Color(0.11, 0.09, 0.06, 0.97), Color(0.78, 0.64, 0.36, 0.92), 1, 5, 12)
+	box.border_width_bottom = 2
+	box.shadow_color = Color(0.02, 0.01, 0.00, 0.55)
+	box.shadow_size = 8
+	box.shadow_offset = Vector2(0, 3)
+	return box
 
 
 static func _box(fill: Color, border: Color, width: int, radius: int, padding: int = 6) -> StyleBoxFlat:

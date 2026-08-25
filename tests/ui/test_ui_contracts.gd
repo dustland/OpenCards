@@ -52,6 +52,7 @@ static func run(t) -> void:
 	_test_action_builders(t)
 	_test_card_view_modes_and_geometry(t)
 	_test_card_inspect_lists_combat_and_ability(t)
+	_test_card_tooltip_is_a_dossier(t)
 	_test_card_roles_use_distinct_colors(t)
 	_test_card_view_hidden_mode_redacts_data(t)
 	_test_card_view_press_and_drag_share_instance_id(t)
@@ -499,6 +500,7 @@ static func _test_card_visual_badges_fan_hover_and_ghost(t) -> void:
 	Engine.get_main_loop().root.add_child(card)
 	card.bind(_card_data(), "hand")
 	t.assert_true(card.get_node("Frame/Costs/Deployment/BadgeCost").texture != null, "deployment badge art present")
+	t.assert_true(card.get_node("Frame/Costs/Operation/BadgeOp").texture != null, "operate badge art present")
 	t.assert_true(card.get_node("Frame/Stats/Attack/BadgeAttack").texture != null, "attack badge art present")
 	t.assert_true(card.get_node("Frame/Stats/Defense/BadgeDefense").texture != null, "defense badge art present")
 	t.assert_true(card.get_node("CardBack/BackTexture").texture != null, "card back uses generated texture")
@@ -545,7 +547,7 @@ static func _test_card_visual_badges_fan_hover_and_ghost(t) -> void:
 	Engine.get_main_loop().root.add_child(motion_view)
 	var ghost = director._ghost_card(motion_view, Rect2(10, 10, 116, 162), _card_data())
 	t.assert_true(ghost.is_in_group("card_motion_proxy"), "motion ghost keeps the proxy group")
-	t.assert_eq(ghost.get_node("Frame/Title").text, "Rifle Platoon", "motion ghost renders the card title")
+	t.assert_eq(ghost.get_node("Frame/Title").text, "RIFLE PLATOON", "motion ghost renders the card title")
 	t.assert_eq(ghost.mode, "hand", "motion ghost matches hand geometry")
 	director.cancel()
 	motion_view.free()
@@ -702,10 +704,18 @@ static func _test_theme_and_screen_contract(t) -> void:
 	var theme := ThemeFactory.create()
 	t.assert_true(theme.has_color("font_color", "Label"), "theme defines label color")
 	t.assert_eq(theme.get_color("font_color", "Label"), Color("e8e1d2"), "approved warm text")
+	t.assert_true(theme.has_stylebox("panel", "TooltipPanel"), "theme styles the engine tooltip plaque")
+	var tip := theme.get_stylebox("panel", "TooltipPanel") as StyleBoxFlat
+	t.assert_true(tip != null and tip.bg_color.a >= 0.94, "tooltip plaque is opaque paper, not a glass smear")
+	t.assert_eq(theme.get_color("font_color", "TooltipLabel"), Color("e8e1d2"), "tooltip text uses the warm ivory")
 	t.assert_true(theme.default_font != null, "theme ships a CJK-capable default font")
+	t.assert_true(ResourceLoader.exists("res://game_assets/ui/fonts/oswald_semibold.ttf"), "display font is packaged")
 	t.assert_true(ResourceLoader.exists("res://game_assets/ui/fonts/ui_cjk.ttf"), "CJK font is packaged")
+	var stacked := theme.default_font as FontVariation
+	t.assert_true(stacked != null, "theme stacks a display face, not the engine default")
+	t.assert_eq(stacked.base_font, ThemeFactory.DISPLAY_FONT, "Latin and numerals use the plate-cut display face")
 	t.assert_true(ResourceLoader.exists("res://game_assets/ui/title_cover.png"), "title cover is packaged")
-	t.assert_eq(str(ProjectSettings.get_setting("application/boot_splash/image")), "res://game_assets/ui/title_cover.png", "engine splash uses the title cover")
+	t.assert_true(not bool(ProjectSettings.get_setting("application/boot_splash/show_image")), "engine splash stays a flat color so the cover is not stretched into fullscreen")
 	t.assert_true(theme.default_font.get_string_size("部署").x > 8, "Chinese UI text has a real advance")
 	for key in LocaleScript.STRINGS.keys():
 		var text := LocaleScript.ui(str(key))
@@ -909,7 +919,7 @@ static func _test_card_view_modes_and_geometry(t) -> void:
 		var view = CardViewScene.instantiate()
 		view.bind(card, mode)
 		t.assert_eq(view.custom_minimum_size, expected_sizes[mode], "%s mode has stable geometry" % mode)
-		t.assert_eq(view.get_node("Frame/Title").text, "Rifle Platoon", "%s mode renders title" % mode)
+		t.assert_eq(view.get_node("Frame/Title").text, "RIFLE PLATOON", "%s mode renders title" % mode)
 		t.assert_eq(view.get_node("Frame/Stats/Attack").text, "1", "%s mode renders attack" % mode)
 		t.assert_eq(view.get_node("Frame/Stats/Defense").text, "2", "%s mode renders defense" % mode)
 		t.assert_true(view.get_node("Frame/Artwork").texture != null, "%s mode has fallback artwork" % mode)
@@ -917,7 +927,9 @@ static func _test_card_view_modes_and_geometry(t) -> void:
 			var title := view.get_node("Frame/Title") as Label
 			t.assert_true(title.get_theme_font_size("font_size") >= 10, "battlefield title is at least 10px")
 		if mode in ["hand", "battlefield"]:
-			t.assert_true(view.get_node("Frame/Stats").position.y <= 8.0, "%s combat numbers sit at the top" % mode)
+			var art := view.get_node("Frame/Artwork") as Control
+			var stats := view.get_node("Frame/Stats") as Control
+			t.assert_true(stats.position.y >= art.position.y + art.size.y - stats.size.y - 4.0, "%s combat numbers sit on the art foot" % mode)
 		if mode == "hand":
 			t.assert_true(view.get_node("Frame/Costs").position.y <= 8.0, "hand costs sit at the top")
 		view.free()
@@ -945,10 +957,42 @@ static func _test_card_inspect_lists_combat_and_ability(t) -> void:
 	t.assert_true(text.contains("%s 1" % LocaleScript.ui("inspect.attack")), "inspect lists attack")
 	t.assert_true(text.contains("%s 3" % LocaleScript.ui("inspect.defense")), "inspect lists defense")
 	t.assert_true(text.contains(LocaleScript.ui("card.us-supply-column")), "inspect lists the card ability")
+	t.assert_true(LocaleScript.ui("inspect.range.infantry") in text, "inspect teaches infantry range, which the card face does not")
+	t.assert_true(LocaleScript.ui("role.hold") in CardView.inspect_identity_line(view.card_data), "inspect identity names the hold role")
+	t.assert_true("Infantry" in CardView.inspect_identity_line(view.card_data), "inspect identity keeps the unit type")
 	t.assert_true(LocaleScript.ui("role.hold") in CardView.inspect_meta_line(view.card_data), "inspect meta names the hold role")
 	t.assert_true("Infantry" in CardView.inspect_meta_line(view.card_data), "inspect meta keeps the unit type")
 	t.assert_true(LocaleScript.ui("card.us-supply-column") in CardView.inspect_body(view.card_data), "inspect body keeps the ability")
 	view.free()
+
+
+static func _test_card_tooltip_is_a_dossier(t) -> void:
+	var view := CardViewScene.instantiate() as CardView
+	view.bind(_card_data(), "catalog")
+	var sheet = view._make_custom_tooltip(view.tooltip_text)
+	t.assert_true(sheet is VBoxContainer, "card tooltip builds a paper sheet instead of the native smear")
+	var texts: PackedStringArray = PackedStringArray()
+	var art_nodes: Array = []
+	_collect_tooltip_bits(sheet, texts, art_nodes)
+	var joined := "\n".join(texts)
+	t.assert_true(not art_nodes.is_empty() and (art_nodes[0] as TextureRect).texture != null, "tooltip sheet shows the card portrait")
+	t.assert_true("Rifle Platoon" in joined, "tooltip sheet keeps the card title")
+	t.assert_true(LocaleScript.ui("role.hold") in joined, "tooltip sheet names the role")
+	t.assert_true(("%s 1" % LocaleScript.ui("inspect.attack")) in joined, "tooltip sheet lists attack")
+	(sheet as Node).free()
+	view.native_tooltip = false
+	t.assert_eq(view._get_tooltip(Vector2.ZERO), "", "match cards do not advertise a floating tooltip")
+	t.assert_true(view._make_custom_tooltip(view.tooltip_text) == null, "match cards do not spawn a blank tooltip plaque")
+	view.free()
+
+
+static func _collect_tooltip_bits(node: Node, texts: PackedStringArray, art_nodes: Array) -> void:
+	if node is Label:
+		texts.append((node as Label).text)
+	if node is TextureRect and node.name == "InspectArt":
+		art_nodes.append(node)
+	for child in node.get_children():
+		_collect_tooltip_bits(child, texts, art_nodes)
 
 
 static func _test_card_roles_use_distinct_colors(t) -> void:
@@ -970,15 +1014,17 @@ static func _test_card_roles_use_distinct_colors(t) -> void:
 		var view = CardViewScene.instantiate()
 		view.bind(data, "catalog")
 		t.assert_eq(view.get_node("Frame/Type").text, LocaleScript.ui("role.%s" % role), "%s catalog names the role" % data.get("title"))
-		t.assert_eq(view.get_node("Frame/CategoryStrip").color, palette["strip"], "%s strip uses the role color" % data.get("title"))
+		t.assert_eq(view.get_node("Frame/RoleMark").texture, CardView.role_mark_texture(role), "%s catalog shows the role mark" % data.get("title"))
+		t.assert_true(not view.get_node("Frame/CategoryStrip").visible, "%s does not draw a second role bar" % data.get("title"))
 		var style := view.get_theme_stylebox("normal") as StyleBoxFlat
 		t.assert_eq(style.border_color, palette["border"], "%s frame uses the role color" % data.get("title"))
 		t.assert_true(LocaleScript.ui("role.%s" % role) in CardView.inspect_meta_line(data), "%s inspect names the role" % data.get("title"))
 		view.free()
 		var hand = CardViewScene.instantiate()
 		hand.bind(data, "hand")
-		t.assert_eq(hand.get_node("Frame/Type").text, LocaleScript.ui("role.%s" % role), "%s hand names the role" % data.get("title"))
-		t.assert_true(hand.get_node("Frame/Type").visible, "%s hand shows the role" % data.get("title"))
+		t.assert_true(hand.get_node("Frame/RoleMark").visible, "%s hand shows the role mark" % data.get("title"))
+		t.assert_eq(hand.get_node("Frame/RoleMark").texture, CardView.role_mark_texture(role), "%s hand uses the role mark" % data.get("title"))
+		t.assert_true(not hand.get_node("Frame/Type").visible, "%s hand keeps the role as a mark" % data.get("title"))
 		hand.free()
 		var border: Color = palette["border"]
 		if not border in seen_borders:
@@ -1040,6 +1086,7 @@ static func _assert_visible_layout(t, view: Control, mode: String) -> void:
 		"Frame/Artwork",
 		"Frame/Title",
 		"Frame/Type",
+		"Frame/RoleMark",
 		"Frame/Costs/Deployment",
 		"Frame/Costs/Operation",
 		"Frame/Description",
@@ -1060,7 +1107,7 @@ static func _assert_visible_layout(t, view: Control, mode: String) -> void:
 		for other_index in range(index + 1, visible_controls.size()):
 			var first := visible_controls[index]
 			var second := visible_controls[other_index]
-			if _is_art_under_chrome(first, second):
+			if _is_art_under_chrome(first, second) or _is_stacked_cost(first, second):
 				continue
 			t.assert_true(
 				not first.get_global_rect().intersects(second.get_global_rect()),
@@ -1068,12 +1115,19 @@ static func _assert_visible_layout(t, view: Control, mode: String) -> void:
 			)
 
 
+static func _is_stacked_cost(first: Control, second: Control) -> bool:
+	var paths := [str(first.get_path()), str(second.get_path())]
+	var has_deploy := paths.any(func(path: String) -> bool: return path.ends_with("/Costs/Deployment"))
+	var has_operate := paths.any(func(path: String) -> bool: return path.ends_with("/Costs/Operation"))
+	return has_deploy and has_operate
+
+
 static func _is_art_under_chrome(first: Control, second: Control) -> bool:
 	var paths := [str(first.get_path()), str(second.get_path())]
 	var has_art := paths.any(func(path: String) -> bool: return path.ends_with("/Artwork"))
 	if not has_art:
 		return false
-	for needle in ["/Title", "/Type", "/Costs/", "/Stats/", "/Keywords", "/Description"]:
+	for needle in ["/Title", "/Type", "/RoleMark", "/Costs/", "/Stats/", "/Keywords", "/Description"]:
 		if paths.any(func(path: String) -> bool: return needle in path):
 			return true
 	return false

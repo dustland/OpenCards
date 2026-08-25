@@ -110,6 +110,7 @@ preset = File.read(preset_path)
   'variant/thread_support=false' => "disabled Web threads",
   'progressive_web_app/enabled=false' => "disabled PWA",
   'progressive_web_app/ensure_cross_origin_isolation_headers=false' => "disabled cross-origin isolation headers",
+  'res://game_assets/ui/fonts/oswald_semibold.ttf' => "display UI font",
   'res://game_assets/ui/fonts/ui_cjk.ttf' => "CJK UI font",
   'res://game_assets/ui/title_cover.png' => "title cover splash"
 }.each do |text, description|

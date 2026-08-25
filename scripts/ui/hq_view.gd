@@ -33,6 +33,7 @@ func bind_hq(data: Dictionary, nation: String, hq_defense: int) -> void:
 	var emblem: Texture2D = load(EMBLEM_PATHS[emblem_key(nation)])
 	%Emblem.texture = emblem
 	%HpLabel.text = str(hq_defense)
+	%HpLabel.add_theme_font_override("font", ThemeFactory.stamped(1))
 	%HpLabel.add_theme_font_size_override("font_size", 30 if hq_defense >= 10 else 34)
 
 

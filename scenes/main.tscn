@@ -1,8 +1,7 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="Texture2D" path="res://game_assets/ui/battlefield_bg.png" id="2_battlefield_bg"]
-[ext_resource type="Texture2D" path="res://game_assets/ui/title_cover.png" id="3_title_cover"]
 
 [sub_resource type="Gradient" id="ShadeGradient"]
 offsets = PackedFloat32Array(0, 0.55, 1)
@@ -81,7 +80,7 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="Cover" type="TextureRect" parent="BootLoad"]
+[node name="Cover" type="ColorRect" parent="BootLoad"]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -89,9 +88,7 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-expand_mode = 1
-stretch_mode = 6
-texture = ExtResource("3_title_cover")
+color = Color(0.04, 0.03, 0.02, 1)
 
 [node name="LoadingLabel" type="Label" parent="BootLoad"]
 unique_name_in_owner = true

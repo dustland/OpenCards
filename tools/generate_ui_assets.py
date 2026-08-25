@@ -6,9 +6,10 @@ Outputs to game_assets/ui/:
   card_back.png       232x324   neutral card back (runtime nation tint)
   hq_us.png           256x256   US headquarters emblem plate
   hq_su.png           256x256   Soviet headquarters emblem plate
-  badge_cost.png      64x64     brass coin (deployment cost)
-  badge_attack.png    64x64     red steel roundel (attack)
-  badge_defense.png   64x64     blue shield (defense)
+  badge_cost.png      64x64     charcoal cost square
+  badge_operate.png   64x64     charcoal cost square
+  badge_attack.png    64x64     charcoal attack well
+  badge_defense.png   64x64     charcoal defense shield
 
 Everything is seeded; rerunning produces identical bytes.
 """

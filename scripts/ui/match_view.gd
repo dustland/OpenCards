@@ -23,9 +23,6 @@ var _motion_director = CardMotionDirectorScript.new()
 var _card_registry: Dictionary = {}
 var _coach_pulse: Tween
 var _inspect_panel: PanelContainer
-var _inspect_title: Label
-var _inspect_meta: Label
-var _inspect_text: Label
 var _hovered_inspect: Dictionary = {}
 var _last_layout_size := Vector2.ZERO
 var _card_titles: Dictionary = {}
@@ -968,10 +965,10 @@ func _refresh_end_turn_state() -> void:
 		%EndTurnButton.set_meta("action_state", "disabled")
 	elif bool(_coach_state.get("end_turn_only", false)):
 		%EndTurnButton.set_meta("action_state", "strong")
-		var style := BattlefieldChrome.plaque(Color("2b2d24"), Color("f0cf55"), 3, 4, 8)
-		%EndTurnButton.add_theme_stylebox_override("normal", style)
+		%EndTurnButton.add_theme_stylebox_override("normal", BattlefieldChrome.plaque(Color("2b2d24"), Color("f0cf55"), 3, 4, 8, 5))
 	else:
 		%EndTurnButton.set_meta("action_state", "normal")
+		%EndTurnButton.add_theme_stylebox_override("normal", BattlefieldChrome.plaque(Color(0.18, 0.15, 0.08, 0.92), Color(0.78, 0.66, 0.38, 0.88), 2, 4, 8, 4))
 
 
 func _present_command(button: BaseButton, available: bool) -> void:
@@ -1307,14 +1304,17 @@ func _attach_lane(host: Control, tint: Color, chip_name: String, key: String) ->
 		chip.name = chip_name
 		chip.unique_name_in_owner = true
 		chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		chip.add_theme_font_size_override("font_size", 12)
-		chip.add_theme_color_override("font_color", Color("e8e1d2"))
+		chip.add_theme_font_size_override("font_size", 11)
+		chip.add_theme_color_override("font_color", Color(0.94, 0.88, 0.70, 0.96))
 		chip.add_theme_color_override("font_outline_color", Color(0.08, 0.07, 0.04, 0.85))
-		chip.add_theme_constant_override("outline_size", 3)
+		chip.add_theme_constant_override("outline_size", 2)
+		chip.add_theme_stylebox_override("normal", BattlefieldChrome.nameplate(Color(0.10, 0.08, 0.05, 0.78), Color(0.72, 0.60, 0.34, 0.72)))
 		chip.position = Vector2(8, 2)
 		chip.z_index = 2
 		host.add_child(chip)
-	(host.get_node(chip_name) as Label).text = LocaleScript.ui(key)
+	var lane_chip := host.get_node(chip_name) as Label
+	lane_chip.text = LocaleScript.ui(key)
+	lane_chip.add_theme_stylebox_override("normal", BattlefieldChrome.nameplate(Color(0.10, 0.08, 0.05, 0.78), Color(0.72, 0.60, 0.34, 0.72)))
 
 
 func _update_lane_chips() -> void:
@@ -1360,16 +1360,13 @@ func _install_help_button() -> void:
 
 
 func _style_quiet_chip(button: Button) -> void:
-	var quiet := StyleBoxFlat.new()
-	quiet.bg_color = Color(0, 0, 0, 0)
-	quiet.set_border_width_all(0)
-	quiet.set_content_margin_all(6)
-	var hover := BattlefieldChrome.plaque(Color(0.12, 0.11, 0.07, 0.55), Color(0.78, 0.66, 0.38, 0.55), 1, 2, 6)
+	var quiet := BattlefieldChrome.plaque(Color(0.10, 0.09, 0.06, 0.42), Color(0.62, 0.52, 0.32, 0.40), 1, 3, 7, 2)
+	var hover := BattlefieldChrome.plaque(Color(0.16, 0.13, 0.07, 0.72), Color(0.86, 0.72, 0.40, 0.80), 1, 3, 7, 3)
 	button.add_theme_stylebox_override("normal", quiet)
 	button.add_theme_stylebox_override("hover", hover)
 	button.add_theme_stylebox_override("pressed", hover)
 	button.add_theme_font_size_override("font_size", 13)
-	button.add_theme_color_override("font_color", Color(0.78, 0.72, 0.56, 0.92))
+	button.add_theme_color_override("font_color", Color(0.88, 0.80, 0.58, 0.94))
 
 
 func _place_before_log_gap(button: Control) -> void:
@@ -1391,37 +1388,26 @@ func _install_inspect_panel() -> void:
 	_inspect_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_inspect_panel.z_index = 24
 	_inspect_panel.clip_contents = true
-	var column := _inspect_panel.get_node_or_null("Column") as VBoxContainer
+	_inspect_panel.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	_inspect_panel.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	var column := _inspect_panel.find_child("Column", true, false) as VBoxContainer
 	if column == null:
-		column = VBoxContainer.new()
-		column.name = "Column"
-		column.add_theme_constant_override("separation", 2)
-		column.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		for child in _inspect_panel.get_children():
 			_inspect_panel.remove_child(child)
 			child.queue_free()
-		_inspect_panel.add_child(column)
-		_inspect_title = _make_inspect_label("InspectTitle", 14)
-		_inspect_meta = _make_inspect_label("InspectMeta", 11)
-		_inspect_text = _make_inspect_label("InspectText", 12)
-		column.add_child(_inspect_title)
-		column.add_child(_inspect_meta)
-		column.add_child(_inspect_text)
-	else:
-		_inspect_title = column.get_node_or_null("InspectTitle") as Label
-		_inspect_meta = column.get_node_or_null("InspectMeta") as Label
-		_inspect_text = column.get_node_or_null("InspectText") as Label
+		var scroll := ScrollContainer.new()
+		scroll.name = "InspectScroll"
+		scroll.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+		scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
+		_inspect_panel.add_child(scroll)
+		column = VBoxContainer.new()
+		column.name = "Column"
+		column.add_theme_constant_override("separation", 0)
+		column.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		scroll.add_child(column)
 	_style_inspect_panel()
-
-
-func _make_inspect_label(label_name: String, font_size: int) -> Label:
-	var label := Label.new()
-	label.name = label_name
-	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	label.add_theme_font_size_override("font_size", font_size)
-	return label
 
 
 func _style_inspect_panel() -> void:
@@ -1429,21 +1415,10 @@ func _style_inspect_panel() -> void:
 		return
 	_inspect_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_inspect_panel.clip_contents = true
-	_inspect_panel.custom_minimum_size = Vector2(220, 56)
-	_inspect_panel.add_theme_stylebox_override("panel", BattlefieldChrome.plaque(Color(0.06, 0.05, 0.04, 0.92), Color(0.58, 0.48, 0.30, 0.62), 1, 5, 10))
+	_inspect_panel.custom_minimum_size = Vector2(360, 160)
+	var plaque := BattlefieldChrome.plaque(Color(0.12, 0.10, 0.06, 0.98), Color(0.84, 0.70, 0.38, 0.95), 2, 6, 12, 8)
+	_inspect_panel.add_theme_stylebox_override("panel", plaque)
 	_inspect_panel.material = BattlefieldChrome.paper_material(0.06)
-	if _inspect_title != null:
-		_inspect_title.add_theme_color_override("font_color", Color(0.95, 0.88, 0.66, 0.98))
-		_inspect_title.add_theme_color_override("font_outline_color", Color(0.04, 0.03, 0.02, 0.80))
-		_inspect_title.add_theme_constant_override("outline_size", 3)
-	if _inspect_meta != null:
-		_inspect_meta.add_theme_color_override("font_color", Color(0.78, 0.70, 0.50, 0.90))
-		_inspect_meta.autowrap_mode = TextServer.AUTOWRAP_OFF
-	if _inspect_text != null:
-		_inspect_text.add_theme_color_override("font_color", Color(0.88, 0.82, 0.68, 0.94))
-		_inspect_text.add_theme_color_override("font_outline_color", Color(0.04, 0.03, 0.02, 0.70))
-		_inspect_text.add_theme_constant_override("outline_size", 2)
-		_inspect_text.custom_minimum_size = Vector2(200, 28)
 
 
 func _on_hq_inspected(hq: HqView) -> void:
@@ -1476,21 +1451,18 @@ func _refresh_inspect() -> void:
 	if data.is_empty() or bool(data.get("hidden", false)):
 		_inspect_panel.visible = false
 		return
-	var title: String = str(data.get("title", "")).strip_edges()
-	var meta: String = CardView.inspect_meta_line(data)
-	var body: String = CardView.inspect_body(data)
+	var column := _inspect_panel.find_child("Column", true, false) as VBoxContainer
+	if column == null:
+		_inspect_panel.visible = false
+		return
+	for child in column.get_children():
+		column.remove_child(child)
+		child.queue_free()
 	var reason: String = _inspect_reason(data)
-	if _inspect_title != null:
-		_inspect_title.text = title
-		_inspect_title.visible = not title.is_empty()
-	if _inspect_meta != null:
-		_inspect_meta.text = reason if not reason.is_empty() else meta
-		_inspect_meta.visible = not _inspect_meta.text.is_empty()
-		_inspect_meta.add_theme_color_override("font_color", Color("e8c36a") if not reason.is_empty() else Color(0.78, 0.70, 0.50, 0.90))
-	if _inspect_text != null:
-		_inspect_text.text = body
-		_inspect_text.visible = not body.is_empty()
-	_inspect_panel.visible = not title.is_empty() or not meta.is_empty() or not body.is_empty()
+	var copy := CardView.inspect_copy(data)
+	var for_text := copy if reason.is_empty() else "%s\n%s" % [reason, copy]
+	column.add_child(CardView.make_tooltip_sheet(for_text, data))
+	_inspect_panel.visible = true
 	_place_inspect()
 
 
@@ -1530,25 +1502,41 @@ func _place_inspect() -> void:
 		return
 	var area := get_global_rect()
 	var hand_top: float = %HandScroll.get_global_rect().position.y if has_node("%HandScroll") else area.end.y - HAND_STRIP_HEIGHT
-	_inspect_panel.custom_minimum_size = Vector2(220, 56)
-	if _inspect_text != null:
-		_inspect_text.custom_minimum_size = Vector2(200, 28)
+	var max_width: float = minf(460.0, maxf(360.0, area.size.x * 0.42))
+	var max_height: float = minf(320.0, maxf(160.0, hand_top - area.position.y - 48.0))
+	var inner_width: float = max_width - 28.0
+	_inspect_panel.clip_contents = true
+	var scroll := _inspect_panel.get_node_or_null("InspectScroll") as ScrollContainer
+	if scroll != null:
+		scroll.custom_minimum_size = Vector2(inner_width, max_height - 24.0)
+	_inspect_panel.custom_minimum_size = Vector2(max_width, 0)
 	var wanted: Vector2 = _inspect_panel.get_combined_minimum_size()
-	var panel_size := Vector2(clampf(wanted.x, 220.0, minf(280.0, area.size.x * 0.30)), clampf(wanted.y, 56.0, 120.0))
+	var panel_size := Vector2(max_width, clampf(wanted.y, 160.0, max_height))
+	if scroll != null:
+		scroll.custom_minimum_size = Vector2(inner_width, panel_size.y - 24.0)
 	_inspect_panel.size = panel_size
 	_inspect_panel.custom_minimum_size = panel_size
 	var pos := Vector2(area.end.x - panel_size.x - 12.0, hand_top - panel_size.y - 6.0)
 	pos.x = clampf(pos.x, area.position.x + 8.0, area.end.x - panel_size.x - 8.0)
-	pos.y = clampf(pos.y, area.position.y + 36.0, hand_top - panel_size.y)
+	pos.y = clampf(pos.y, area.position.y + 36.0, hand_top - panel_size.y - 1.0)
 	_inspect_panel.global_position = pos
 
 
 func _style_table_chrome() -> void:
 	%TimelinePanel.material = BattlefieldChrome.paper_material(0.09)
+	var pile_plate := BattlefieldChrome.plaque(Color(0.10, 0.08, 0.05, 0.90), Color(0.80, 0.66, 0.36, 0.92), 2, 4, 4, 4)
 	for pile in [%OpponentDeckPile, %OpponentDiscardPile, %PlayerDeckPile, %PlayerDiscardPile]:
+		pile.add_theme_stylebox_override("panel", pile_plate)
 		pile.material = BattlefieldChrome.paper_material(0.10)
+	for count in [%OpponentDeckCount, %OpponentDiscardCount, %PlayerDeckCount, %PlayerDiscardCount]:
+		count.add_theme_color_override("font_color", Color(0.96, 0.90, 0.72, 1))
+		count.add_theme_color_override("font_outline_color", Color(0.06, 0.04, 0.02, 0.92))
+		count.add_theme_constant_override("outline_size", 4)
 	%CreditLabel.add_theme_color_override("font_color", Color("f2dd9a"))
+	%CreditLabel.add_theme_stylebox_override("normal", BattlefieldChrome.nameplate(Color(0.16, 0.13, 0.07, 0.88), Color(0.84, 0.70, 0.38, 0.90)))
 	_credit_chip().tooltip_text = LocaleScript.ui("status.credit_hint")
+	%ConfirmButton.add_theme_stylebox_override("normal", BattlefieldChrome.plaque(Color(0.22, 0.18, 0.08, 0.94), Color(0.86, 0.72, 0.38, 0.92), 2, 4, 8, 4))
+	%CancelButton.add_theme_stylebox_override("normal", BattlefieldChrome.plaque(Color(0.14, 0.12, 0.08, 0.88), Color(0.68, 0.56, 0.34, 0.70), 1, 4, 8, 3))
 
 
 func _style_coach() -> void:
@@ -1576,16 +1564,18 @@ func _style_coach_for_rejection(rejected: bool) -> void:
 
 
 func _style_turn_chip(active: bool) -> void:
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color("3a3420") if active else Color(0, 0, 0, 0)
-	style.border_color = Color("d1b56f") if active else Color(0, 0, 0, 0)
-	style.set_border_width_all(2 if active else 0)
-	style.set_corner_radius_all(4)
-	style.content_margin_left = 8
-	style.content_margin_right = 8
+	var style := BattlefieldChrome.plaque(
+		Color(0.28, 0.22, 0.10, 0.94) if active else Color(0.10, 0.09, 0.06, 0.62),
+		Color("e2c36a") if active else Color(0.62, 0.52, 0.32, 0.55),
+		2 if active else 1,
+		4,
+		8,
+		4 if active else 2
+	)
 	style.content_margin_top = 4
 	style.content_margin_bottom = 4
 	%TurnLabel.add_theme_stylebox_override("normal", style)
+	%TurnLabel.add_theme_color_override("font_color", Color(0.98, 0.90, 0.62) if active else Color(0.86, 0.78, 0.56, 0.92))
 
 
 func _pulse_coach() -> void:

@@ -92,9 +92,13 @@ func _draw() -> void:
 	if not lane_caption.is_empty():
 		var font := get_theme_default_font()
 		if font != null:
-			var label_y := size.y * 0.5 - 16.0 if zone_name == "frontline" else maxf(12.0, _slot_cell(0).position.y - 4.0)
+			var label_y := size.y * 0.5 - 16.0 if zone_name == "frontline" else maxf(14.0, _slot_cell(0).position.y - 2.0)
 			var label_x := 18.0 if zone_name == "frontline" else _slot_cell(0).position.x
-			draw_string(font, Vector2(label_x, label_y), lane_caption, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0.91, 0.88, 0.78, 0.95))
+			var text_size: Vector2 = font.get_string_size(lane_caption, HORIZONTAL_ALIGNMENT_LEFT, -1, 12)
+			var plate := Rect2(label_x - 5.0, label_y - 13.0, text_size.x + 10.0, 18.0)
+			draw_rect(plate, Color(0.08, 0.07, 0.04, 0.72), true)
+			draw_rect(plate, Color(0.72, 0.60, 0.34, 0.70), false, 1.0)
+			draw_string(font, Vector2(label_x, label_y), lane_caption, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0.94, 0.88, 0.70, 0.96))
 
 func _layout_slots() -> void:
 	var slots := _drop_slots()

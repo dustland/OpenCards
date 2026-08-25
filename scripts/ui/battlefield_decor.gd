@@ -58,7 +58,7 @@ func _draw() -> void:
 	var board := host.get_node_or_null("Margin/Columns/Board") as Control
 	if board != null:
 		var board_rect := _local_rect(board)
-		BattlefieldChrome.draw_corner_brackets(self, board_rect.grow(-2.0), Color(0.72, 0.62, 0.38, 0.28), 22.0, 1.4)
+		BattlefieldChrome.draw_corner_brackets(self, board_rect.grow(-2.0), Color(0.78, 0.66, 0.38, 0.42), 26.0, 1.8)
 	var opponent := host.get_node_or_null("Margin/Columns/Board/OpponentArea") as Control
 	if opponent != null:
 		BattlefieldChrome.draw_stitches(self, _local_rect(opponent), Color(0.62, 0.36, 0.30, 0.28))
@@ -68,9 +68,10 @@ func _draw() -> void:
 	var hand := host.get_node_or_null("%HandScroll") as Control
 	if hand != null:
 		var hand_rect := _local_rect(hand).grow_individual(4.0, 2.0, 4.0, 2.0)
-		draw_rect(hand_rect, Color(0.08, 0.07, 0.05, 0.22), true)
-		BattlefieldChrome.draw_stitches(self, hand_rect, Color(0.58, 0.50, 0.32, 0.22))
-		BattlefieldChrome.draw_corner_brackets(self, hand_rect, Color(0.62, 0.54, 0.34, 0.32), 14.0, 1.3)
+		draw_rect(hand_rect.grow(2.0), Color(0.03, 0.02, 0.01, 0.28), true)
+		draw_rect(hand_rect, Color(0.09, 0.07, 0.04, 0.38), true)
+		BattlefieldChrome.draw_stitches(self, hand_rect, Color(0.68, 0.56, 0.34, 0.36))
+		BattlefieldChrome.draw_corner_brackets(self, hand_rect, Color(0.78, 0.66, 0.38, 0.55), 16.0, 1.6)
 
 
 func _local_rect(control: Control) -> Rect2:

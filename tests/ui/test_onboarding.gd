@@ -164,9 +164,13 @@ static func _test_match_coach_and_card_states(t) -> void:
 	t.assert_true(cards[1].tooltip_text.begins_with(LocaleScript.ui("reason.credit")), "unavailable source exposes concrete reason")
 	view._on_card_inspected((cards[0] as CardView).card_data)
 	await view.get_tree().process_frame
+	await view.get_tree().process_frame
+	view._place_inspect()
 	var dossier := view._inspect_panel as Control
 	t.assert_true(dossier.visible, "inspect dossier opens over the table")
-	t.assert_true(dossier.size.x <= 280.0 and dossier.size.y <= 120.0, "inspect stays in a fixed pocket")
+	t.assert_true(dossier.size.x <= 480.0 and dossier.size.y <= 360.0, "inspect stays a readable dossier")
+	t.assert_true(dossier.size.x >= 300.0 and dossier.size.y >= 140.0, "inspect is large enough for the portrait and basics")
+	t.assert_true(dossier.find_child("InspectArt", true, false) != null, "inspect shows the card portrait")
 	t.assert_true(dossier.get_global_rect().end.y <= hand_top + 0.5, "inspect never drops into the hand")
 	t.assert_eq(view.get_node("%HandScroll").get_global_rect().position.y, hand_top, "inspect does not shift the hand")
 	view._on_card_pressed("one-cost")
